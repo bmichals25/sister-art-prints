@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import type { Artwork } from '@/lib/supabase';
+import { ArtworkPositionerTabs } from './ArtworkPositioner';
 
 interface AdminPanelProps {
   onClose: () => void;
@@ -348,6 +349,12 @@ const PRINT_OPTIONS = [
   { id: 'framed-24x36', type: 'framed', label: 'Framed 24x36"', price: 129.99 },
 ];
 
+interface ArtworkPosition {
+  scale: number;
+  offsetX: number;
+  offsetY: number;
+}
+
 function EditArtwork({ artwork, onSave, onCancel }: { artwork: Artwork; onSave: () => void; onCancel: () => void }) {
   const [isSaving, setIsSaving] = useState(false);
   const [formData, setFormData] = useState({
@@ -360,6 +367,13 @@ function EditArtwork({ artwork, onSave, onCancel }: { artwork: Artwork; onSave: 
   const [enabledPrints, setEnabledPrints] = useState<string[]>(
     (artwork as Artwork & { enabled_prints?: string[] }).enabled_prints || PRINT_OPTIONS.map(p => p.id)
   );
+  const [artworkPositions, setArtworkPositions] = useState<Record<string, ArtworkPosition>>(
+    (artwork as Artwork & { artwork_positions?: Record<string, ArtworkPosition> }).artwork_positions || {}
+  );
+
+  const handlePositionsChange = useCallback((positions: Record<string, ArtworkPosition>) => {
+    setArtworkPositions(positions);
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -374,6 +388,7 @@ function EditArtwork({ artwork, onSave, onCancel }: { artwork: Artwork; onSave: 
         price_base: parseFloat(formData.price_base),
         featured: formData.featured,
         enabled_prints: enabledPrints,
+        artwork_positions: artworkPositions,
       })
       .eq('id', artwork.id);
 
@@ -512,6 +527,15 @@ function EditArtwork({ artwork, onSave, onCancel }: { artwork: Artwork; onSave: 
             </div>
           ))}
         </div>
+      </div>
+
+      {/* Artwork Positioning */}
+      <div className="border-t border-gray-100 pt-6">
+        <ArtworkPositionerTabs
+          imageUrl={artwork.image_url}
+          positions={artworkPositions}
+          onPositionsChange={handlePositionsChange}
+        />
       </div>
 
       {/* Submit */}
