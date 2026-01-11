@@ -4,19 +4,19 @@ import { createMockupTask, getMockupTaskResult, PRINTFUL_PRODUCTS } from '@/lib/
 // Variant IDs for different sizes (these are Printful's actual variant IDs)
 const VARIANT_IDS: Record<string, Record<string, number>> = {
   poster: {
-    '12×18"': 9853,
-    '18×24"': 9856,
-    '24×36"': 9859,
+    '12×18"': 3876,
+    '18×24"': 1,
+    '24×36"': 2,
   },
   canvas: {
-    '12×16"': 5765,
-    '18×24"': 5768,
-    '24×36"': 5771,
+    '12×16"': 5,
+    '18×24"': 7,
+    '24×36"': 825,
   },
   framed: {
-    '12×18"': 10795,
-    '18×24"': 10799,
-    '24×36"': 10803,
+    '12×18"': 4398,
+    '18×24"': 3,
+    '24×36"': 4,
   },
 };
 

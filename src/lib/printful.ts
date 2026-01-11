@@ -1,4 +1,5 @@
 const PRINTFUL_API_URL = 'https://api.printful.com';
+const PRINTFUL_STORE_ID = '17528088';
 
 interface PrintfulRequestOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'DELETE';
@@ -15,6 +16,7 @@ export async function printfulRequest<T>(
     method,
     headers: {
       'Authorization': `Bearer ${process.env.PRINTFUL_API_TOKEN}`,
+      'X-PF-Store-Id': PRINTFUL_STORE_ID,
       'Content-Type': 'application/json',
     },
     body: body ? JSON.stringify(body) : undefined,
@@ -88,10 +90,9 @@ export async function getOrder(orderId: string) {
 
 // Printful product IDs for art prints
 export const PRINTFUL_PRODUCTS = {
-  poster: 1,        // Enhanced Matte Paper Poster
-  canvas: 171,      // Canvas Print
-  framed: 394,      // Framed Poster
-  metal: 639,       // Metal Print (if available)
+  poster: 1,        // Enhanced Matte Paper Poster (in)
+  canvas: 3,        // Canvas (in)
+  framed: 2,        // Enhanced Matte Paper Framed Poster (in)
 };
 
 // Get mockup templates for a product
