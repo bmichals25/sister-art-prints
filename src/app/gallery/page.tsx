@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { createClient } from '@supabase/supabase-js';
+import { GalleryGrid } from '@/components/GalleryGrid';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -70,64 +71,7 @@ export default async function GalleryPage() {
           </div>
 
           {/* Artwork Grid */}
-          {artworks.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 md:gap-10">
-              {artworks.map((artwork, index) => (
-                <Link
-                  key={artwork.id}
-                  href={`/artwork/${artwork.id}`}
-                  className="group artwork-card fade-in"
-                  style={{ animationDelay: `${index * 0.05}s` }}
-                >
-                  <div className="aspect-[4/5] bg-gradient-to-br from-gray-50 to-gray-100 mb-5 overflow-hidden rounded-xl relative shadow-sm group-hover:shadow-xl transition-shadow duration-500">
-                    {artwork.image_url ? (
-                      <img
-                        src={artwork.image_url}
-                        alt={artwork.title}
-                        className="w-full h-full object-cover artwork-image"
-                      />
-                    ) : (
-                      <div className="w-full h-full bg-gradient-to-br from-[#fff8f3] to-[#f5d4be]/20 flex items-center justify-center">
-                        <svg className="w-12 h-12 text-[#e8a87c]/40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                        </svg>
-                      </div>
-                    )}
-                    {artwork.featured && (
-                      <div className="absolute top-3 left-3 px-3 py-1.5 bg-white/95 backdrop-blur-sm text-xs font-medium text-[#d4846a] rounded-full shadow-sm">
-                        Featured
-                      </div>
-                    )}
-                    {/* Hover overlay */}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                  </div>
-                  <div className="space-y-1.5">
-                    <h3 className="text-lg font-medium text-gray-900 group-hover:text-[#d4846a] transition">
-                      {artwork.title}
-                    </h3>
-                    <p className="text-sm text-gray-500">{artwork.artist_name}</p>
-                    <p className="text-sm font-medium text-[#d4846a] pt-1">From ${artwork.price_base}</p>
-                  </div>
-                </Link>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-32 relative">
-              {/* Decorative elements */}
-              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                <div className="w-64 h-64 rounded-full bg-gradient-to-br from-[#e8a87c]/10 to-transparent blur-3xl" />
-              </div>
-              <div className="relative">
-                <div className="w-24 h-24 bg-gradient-to-br from-[#fff8f3] to-[#f5d4be]/30 rounded-3xl flex items-center justify-center mx-auto mb-8 shadow-lg">
-                  <svg className="w-12 h-12 text-[#d4846a]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                  </svg>
-                </div>
-                <h3 className="text-2xl font-serif font-light text-gray-900 mb-3">No artworks yet</h3>
-                <p className="text-gray-500 text-lg">The gallery is waiting for its first masterpiece</p>
-              </div>
-            </div>
-          )}
+          <GalleryGrid initialArtworks={artworks} />
         </div>
       </main>
 

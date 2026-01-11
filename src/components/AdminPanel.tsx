@@ -392,10 +392,18 @@ function EditArtwork({ artwork, onSave, onCancel }: { artwork: Artwork; onSave: 
       })
       .eq('id', artwork.id);
 
-    setIsSaving(false);
     if (error) {
+      setIsSaving(false);
       alert('Failed to save. Please try again.');
     } else {
+      // Trigger mockup pre-generation in background
+      fetch('/api/mockups/pregenerate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ artworkId: artwork.id }),
+      }).catch(console.error);
+
+      setIsSaving(false);
       onSave();
     }
   }
@@ -610,20 +618,33 @@ function AddArtwork({ onSuccess }: { onSuccess: () => void }) {
       const { data: { user } } = await supabase.auth.getUser();
 
       // Create artwork record
-      const { error: insertError } = await supabase.from('artworks').insert({
-        title: formData.title,
-        description: formData.description,
-        artist_name: formData.artist_name,
-        price_base: parseFloat(formData.price_base),
-        featured: formData.featured,
-        image_url: urlData.publicUrl,
-        thumbnail_url: urlData.publicUrl,
-        tags: [],
-        published_by: user?.id,
-        published_by_email: user?.email,
-      });
+      const { data: insertedArtwork, error: insertError } = await supabase
+        .from('artworks')
+        .insert({
+          title: formData.title,
+          description: formData.description,
+          artist_name: formData.artist_name,
+          price_base: parseFloat(formData.price_base),
+          featured: formData.featured,
+          image_url: urlData.publicUrl,
+          thumbnail_url: urlData.publicUrl,
+          tags: [],
+          published_by: user?.id,
+          published_by_email: user?.email,
+        })
+        .select('id')
+        .single();
 
       if (insertError) throw insertError;
+
+      // Trigger mockup pre-generation in background
+      if (insertedArtwork?.id) {
+        fetch('/api/mockups/pregenerate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ artworkId: insertedArtwork.id }),
+        }).catch(console.error);
+      }
 
       onSuccess();
     } catch (error) {
