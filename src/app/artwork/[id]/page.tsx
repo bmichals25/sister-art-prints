@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { createClient } from '@supabase/supabase-js';
 import { use } from 'react';
@@ -10,20 +10,21 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-// Print options with sizing
+// Print options with sizing - maps to Printful products
 const printOptions = [
-  { id: 'poster-12x18', type: 'Poster', size: '12×18"', price: 24.99, width: 12, height: 18 },
-  { id: 'poster-18x24', type: 'Poster', size: '18×24"', price: 34.99, width: 18, height: 24 },
-  { id: 'poster-24x36', type: 'Poster', size: '24×36"', price: 44.99, width: 24, height: 36 },
-  { id: 'canvas-12x16', type: 'Canvas', size: '12×16"', price: 49.99, width: 12, height: 16 },
-  { id: 'canvas-18x24', type: 'Canvas', size: '18×24"', price: 79.99, width: 18, height: 24 },
-  { id: 'canvas-24x36', type: 'Canvas', size: '24×36"', price: 119.99, width: 24, height: 36 },
-  { id: 'framed-12x18', type: 'Framed', size: '12×18"', price: 59.99, width: 12, height: 18 },
-  { id: 'framed-18x24', type: 'Framed', size: '18×24"', price: 89.99, width: 18, height: 24 },
-  { id: 'framed-24x36', type: 'Framed', size: '24×36"', price: 129.99, width: 24, height: 36 },
-  { id: 'metal-12x16', type: 'Metal', size: '12×16"', price: 79.99, width: 12, height: 16 },
-  { id: 'metal-18x24', type: 'Metal', size: '18×24"', price: 129.99, width: 18, height: 24 },
+  { id: 'poster-12x18', type: 'poster', label: 'Poster', size: '12×18"', price: 24.99 },
+  { id: 'poster-18x24', type: 'poster', label: 'Poster', size: '18×24"', price: 34.99 },
+  { id: 'poster-24x36', type: 'poster', label: 'Poster', size: '24×36"', price: 44.99 },
+  { id: 'canvas-12x16', type: 'canvas', label: 'Canvas', size: '12×16"', price: 49.99 },
+  { id: 'canvas-18x24', type: 'canvas', label: 'Canvas', size: '18×24"', price: 79.99 },
+  { id: 'canvas-24x36', type: 'canvas', label: 'Canvas', size: '24×36"', price: 119.99 },
+  { id: 'framed-12x18', type: 'framed', label: 'Framed', size: '12×18"', price: 59.99 },
+  { id: 'framed-18x24', type: 'framed', label: 'Framed', size: '18×24"', price: 89.99 },
+  { id: 'framed-24x36', type: 'framed', label: 'Framed', size: '24×36"', price: 129.99 },
 ];
+
+const productTypes = ['poster', 'canvas', 'framed'] as const;
+type ProductType = typeof productTypes[number];
 
 interface Artwork {
   id: string;
@@ -38,9 +39,12 @@ export default function ArtworkPage({ params }: { params: Promise<{ id: string }
   const resolvedParams = use(params);
   const [artwork, setArtwork] = useState<Artwork | null>(null);
   const [loading, setLoading] = useState(true);
-  const [selectedType, setSelectedType] = useState('Poster');
+  const [selectedType, setSelectedType] = useState<ProductType>('poster');
   const [selectedOption, setSelectedOption] = useState(printOptions[0]);
   const [isAddingToCart, setIsAddingToCart] = useState(false);
+  const [mockupUrl, setMockupUrl] = useState<string | null>(null);
+  const [mockupLoading, setMockupLoading] = useState(false);
+  const [mockupCache, setMockupCache] = useState<Record<string, string>>({});
 
   useEffect(() => {
     async function fetchArtwork() {
@@ -55,6 +59,49 @@ export default function ArtworkPage({ params }: { params: Promise<{ id: string }
     }
     fetchArtwork();
   }, [resolvedParams.id]);
+
+  // Fetch mockup when type/size changes
+  const fetchMockup = useCallback(async (type: ProductType, size: string, imageUrl: string) => {
+    const cacheKey = `${type}-${size}`;
+
+    // Check cache first
+    if (mockupCache[cacheKey]) {
+      setMockupUrl(mockupCache[cacheKey]);
+      return;
+    }
+
+    setMockupLoading(true);
+    try {
+      const response = await fetch('/api/mockups', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          imageUrl,
+          productType: type,
+          size,
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.mockups && data.mockups[0]?.mockup_url) {
+          const url = data.mockups[0].mockup_url;
+          setMockupUrl(url);
+          setMockupCache(prev => ({ ...prev, [cacheKey]: url }));
+        }
+      }
+    } catch (error) {
+      console.error('Failed to fetch mockup:', error);
+    }
+    setMockupLoading(false);
+  }, [mockupCache]);
+
+  // Trigger mockup fetch when selection changes
+  useEffect(() => {
+    if (artwork?.image_url && selectedType && selectedOption) {
+      fetchMockup(selectedType, selectedOption.size, artwork.image_url);
+    }
+  }, [artwork?.image_url, selectedType, selectedOption, fetchMockup]);
 
   const filteredOptions = printOptions.filter((opt) => opt.type === selectedType);
 
@@ -86,9 +133,11 @@ export default function ArtworkPage({ params }: { params: Promise<{ id: string }
     );
   }
 
-  // Calculate mockup scale based on selected size
-  const maxDimension = Math.max(selectedOption.width, selectedOption.height);
-  const scale = Math.min(1, 36 / maxDimension); // Normalize to max 36"
+  const typeLabels: Record<ProductType, string> = {
+    poster: 'Poster',
+    canvas: 'Canvas',
+    framed: 'Framed',
+  };
 
   return (
     <div className="min-h-screen bg-[#fff8f3]">
@@ -131,98 +180,39 @@ export default function ArtworkPage({ params }: { params: Promise<{ id: string }
           {/* Mockup Preview */}
           <div className="sticky top-24">
             <div className="relative aspect-[4/3] bg-gradient-to-b from-[#f5f0eb] to-[#e8e3de] rounded-2xl overflow-hidden shadow-lg">
-              {/* Room Scene */}
-              <div className="absolute inset-0">
-                {/* Wall texture */}
-                <div className="absolute inset-0 bg-[#f5f0eb]" />
-
-                {/* Floor */}
-                <div className="absolute bottom-0 left-0 right-0 h-1/4 bg-gradient-to-t from-[#d4cfc9] to-[#e8e3de]" />
-
-                {/* Shadow on wall */}
-                <div
-                  className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-black/5 blur-xl rounded-lg transition-all duration-500"
-                  style={{
-                    width: `${55 * scale}%`,
-                    height: `${65 * scale}%`,
-                    transform: `translate(-48%, -45%)`,
-                  }}
-                />
-
-                {/* Artwork Frame/Print */}
-                <div
-                  className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 transition-all duration-500"
-                  style={{
-                    width: `${50 * scale}%`,
-                    height: `${60 * scale}%`,
-                  }}
-                >
-                  {selectedType === 'Poster' && (
-                    <div className="w-full h-full bg-white p-1 shadow-xl">
-                      <img
-                        src={artwork.image_url}
-                        alt={artwork.title}
-                        className="w-full h-full object-cover"
-                      />
-                    </div>
-                  )}
-
-                  {selectedType === 'Canvas' && (
-                    <div className="w-full h-full relative">
-                      {/* Canvas depth effect */}
-                      <div className="absolute -right-2 top-2 bottom-2 w-4 bg-gradient-to-r from-gray-300 to-gray-400 transform skewY-12" />
-                      <div className="absolute -bottom-2 left-2 right-2 h-4 bg-gradient-to-b from-gray-300 to-gray-400 transform skewX-12" />
-                      <div className="relative w-full h-full shadow-2xl">
-                        <img
-                          src={artwork.image_url}
-                          alt={artwork.title}
-                          className="w-full h-full object-cover"
-                        />
-                      </div>
-                    </div>
-                  )}
-
-                  {selectedType === 'Framed' && (
-                    <div className="w-full h-full bg-[#2a2420] p-3 shadow-2xl">
-                      <div className="w-full h-full bg-white p-2">
-                        <img
-                          src={artwork.image_url}
-                          alt={artwork.title}
-                          className="w-full h-full object-cover"
-                        />
-                      </div>
-                    </div>
-                  )}
-
-                  {selectedType === 'Metal' && (
-                    <div className="w-full h-full relative">
-                      {/* Metal shine effect */}
-                      <div className="absolute inset-0 bg-gradient-to-br from-white/30 via-transparent to-transparent pointer-events-none z-10" />
-                      <div className="absolute -right-1 top-1 bottom-1 w-2 bg-gradient-to-r from-gray-400 to-gray-500" />
-                      <div className="absolute -bottom-1 left-1 right-1 h-2 bg-gradient-to-b from-gray-400 to-gray-500" />
-                      <img
-                        src={artwork.image_url}
-                        alt={artwork.title}
-                        className="w-full h-full object-cover shadow-xl"
-                        style={{ filter: 'saturate(1.1) contrast(1.05)' }}
-                      />
-                    </div>
-                  )}
+              {/* Show Printful mockup if available, otherwise show artwork */}
+              {mockupLoading ? (
+                <div className="absolute inset-0 flex items-center justify-center bg-[#f5f0eb]">
+                  <div className="text-center">
+                    <div className="animate-spin w-8 h-8 border-2 border-gray-300 border-t-[#d4846a] rounded-full mx-auto mb-3" />
+                    <p className="text-sm text-gray-500">Generating preview...</p>
+                  </div>
                 </div>
-
-                {/* Decorative elements */}
-                <div className="absolute bottom-8 right-12 w-16 h-20 bg-[#c4b8aa] rounded-sm opacity-30" />
-              </div>
+              ) : mockupUrl ? (
+                <img
+                  src={mockupUrl}
+                  alt={`${artwork.title} - ${typeLabels[selectedType]} ${selectedOption.size}`}
+                  className="w-full h-full object-contain"
+                />
+              ) : (
+                <div className="absolute inset-0 flex items-center justify-center p-8">
+                  <img
+                    src={artwork.image_url}
+                    alt={artwork.title}
+                    className="max-w-full max-h-full object-contain shadow-2xl"
+                  />
+                </div>
+              )}
 
               {/* Size indicator */}
               <div className="absolute bottom-4 left-4 bg-white/90 backdrop-blur-sm px-3 py-1.5 rounded-full text-xs font-medium text-gray-700 shadow-sm">
-                {selectedOption.size} {selectedType}
+                {selectedOption.size} {typeLabels[selectedType]}
               </div>
             </div>
 
             {/* Thumbnail strip */}
             <div className="flex gap-3 mt-4 justify-center">
-              {['Poster', 'Canvas', 'Framed', 'Metal'].map((type) => (
+              {productTypes.map((type) => (
                 <button
                   key={type}
                   onClick={() => {
@@ -237,7 +227,7 @@ export default function ArtworkPage({ params }: { params: Promise<{ id: string }
                 >
                   <img
                     src={artwork.image_url}
-                    alt={type}
+                    alt={typeLabels[type]}
                     className="w-full h-full object-cover"
                   />
                 </button>
@@ -255,7 +245,7 @@ export default function ArtworkPage({ params }: { params: Promise<{ id: string }
             <div className="mb-6">
               <label className="block text-sm font-medium text-gray-900 mb-3">Print Type</label>
               <div className="flex flex-wrap gap-2">
-                {['Poster', 'Canvas', 'Framed', 'Metal'].map((type) => (
+                {productTypes.map((type) => (
                   <button
                     key={type}
                     onClick={() => {
@@ -268,7 +258,7 @@ export default function ArtworkPage({ params }: { params: Promise<{ id: string }
                         : 'border-gray-300 hover:border-[#d4846a] hover:text-[#d4846a]'
                     }`}
                   >
-                    {type}
+                    {typeLabels[type]}
                   </button>
                 ))}
               </div>

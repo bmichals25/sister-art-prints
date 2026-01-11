@@ -85,3 +85,98 @@ export async function createOrder(order: {
 export async function getOrder(orderId: string) {
   return printfulRequest(`/orders/${orderId}`);
 }
+
+// Printful product IDs for art prints
+export const PRINTFUL_PRODUCTS = {
+  poster: 1,        // Enhanced Matte Paper Poster
+  canvas: 171,      // Canvas Print
+  framed: 394,      // Framed Poster
+  metal: 639,       // Metal Print (if available)
+};
+
+// Get mockup templates for a product
+export async function getMockupTemplates(productId: number) {
+  return printfulRequest<{
+    product_id: number;
+    available_placements: string[];
+    templates: Array<{
+      template_id: number;
+      title: string;
+      image_url: string;
+      placement: string;
+    }>;
+  }>(`/mockup-generator/templates/${productId}`);
+}
+
+// Create a mockup generation task
+export async function createMockupTask(
+  productId: number,
+  variantIds: number[],
+  imageUrl: string,
+  options?: {
+    format?: 'jpg' | 'png';
+    option_groups?: string[];
+    options?: string[];
+  }
+) {
+  return printfulRequest<{
+    task_key: string;
+    status: string;
+  }>('/mockup-generator/create-task/' + productId, {
+    method: 'POST',
+    body: {
+      variant_ids: variantIds,
+      files: [
+        {
+          placement: 'default',
+          image_url: imageUrl,
+          position: {
+            area_width: 1800,
+            area_height: 2400,
+            width: 1800,
+            height: 2400,
+            top: 0,
+            left: 0,
+          },
+        },
+      ],
+      format: options?.format || 'jpg',
+      option_groups: options?.option_groups,
+      options: options?.options,
+    },
+  });
+}
+
+// Get mockup task result
+export async function getMockupTaskResult(taskKey: string) {
+  return printfulRequest<{
+    status: string;
+    mockups?: Array<{
+      placement: string;
+      variant_ids: number[];
+      mockup_url: string;
+      extra: Array<{
+        title: string;
+        url: string;
+      }>;
+    }>;
+    error?: string;
+  }>(`/mockup-generator/task?task_key=${taskKey}`);
+}
+
+// Get product variants
+export async function getProductVariants(productId: number) {
+  return printfulRequest<{
+    product: {
+      id: number;
+      title: string;
+    };
+    variants: Array<{
+      id: number;
+      product_id: number;
+      name: string;
+      size: string;
+      price: string;
+    }>;
+  }>(`/products/${productId}`);
+}
