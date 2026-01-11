@@ -135,11 +135,11 @@ create trigger update_orders_updated_at
 
 create table if not exists store_settings (
   id uuid primary key default uuid_generate_v4(),
-  store_name text default 'Art Prints',
+  store_name text default 'KatiaPrints',
   tagline text default 'Original artwork, beautifully printed',
-  primary_color text default '#1a1a1a',
-  secondary_color text default '#fafafa',
-  accent_color text default '#666666',
+  primary_color text default '#2d2a26',
+  secondary_color text default '#fff8f3',
+  accent_color text default '#e8a87c',
   font_heading text default 'Playfair Display',
   font_body text default 'Inter',
   vibe text default 'minimal' check (vibe in ('minimal', 'warm', 'bold', 'elegant', 'playful')),

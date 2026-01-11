@@ -14,6 +14,7 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [authError, setAuthError] = useState('');
+  const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
   const [artworks, setArtworks] = useState<Artwork[]>([]);
   const [activeTab, setActiveTab] = useState<'artworks' | 'add' | 'design' | 'settings'>('artworks');
 
@@ -59,6 +60,27 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
     }
   }
 
+  async function handleSignUp(e: React.FormEvent) {
+    e.preventDefault();
+    setAuthError('');
+    setIsLoading(true);
+
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+    });
+
+    if (error) {
+      setAuthError(error.message);
+      setIsLoading(false);
+    } else {
+      setAuthError('');
+      setAuthMode('signin');
+      setIsLoading(false);
+      alert('Account created! Please check your email to verify, then sign in.');
+    }
+  }
+
   async function handleLogout() {
     await supabase.auth.signOut();
     setIsAuthenticated(false);
@@ -99,12 +121,16 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
         </div>
 
         {!isAuthenticated ? (
-          /* Login Form */
+          /* Login/Signup Form */
           <div className="flex-1 flex items-center justify-center p-8">
-            <form onSubmit={handleLogin} className="w-full max-w-sm space-y-6">
+            <form onSubmit={authMode === 'signin' ? handleLogin : handleSignUp} className="w-full max-w-sm space-y-6">
               <div className="text-center mb-8">
-                <h3 className="text-2xl font-light mb-2">Welcome Back</h3>
-                <p className="text-gray-500 text-sm">Sign in to manage your gallery</p>
+                <h3 className="text-2xl font-light mb-2">
+                  {authMode === 'signin' ? 'Welcome Back' : 'Create Account'}
+                </h3>
+                <p className="text-gray-500 text-sm">
+                  {authMode === 'signin' ? 'Sign in to manage your gallery' : 'Sign up to start managing your gallery'}
+                </p>
               </div>
 
               {authError && (
@@ -138,6 +164,7 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
                   className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent transition"
                   placeholder="••••••••"
                   required
+                  minLength={6}
                 />
               </div>
 
@@ -146,8 +173,25 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
                 disabled={isLoading}
                 className="w-full bg-gray-900 text-white py-3 rounded-lg font-medium hover:bg-gray-800 transition disabled:opacity-50"
               >
-                {isLoading ? 'Signing in...' : 'Sign In'}
+                {isLoading
+                  ? (authMode === 'signin' ? 'Signing in...' : 'Creating account...')
+                  : (authMode === 'signin' ? 'Sign In' : 'Create Account')}
               </button>
+
+              <div className="text-center">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAuthMode(authMode === 'signin' ? 'signup' : 'signin');
+                    setAuthError('');
+                  }}
+                  className="text-sm text-gray-600 hover:text-gray-900 transition"
+                >
+                  {authMode === 'signin'
+                    ? "Don't have an account? Sign up"
+                    : 'Already have an account? Sign in'}
+                </button>
+              </div>
             </form>
           </div>
         ) : (
@@ -748,13 +792,6 @@ function DesignSettings() {
 function Settings({ onLogout }: { onLogout: () => void }) {
   return (
     <div className="space-y-6">
-      <div className="p-4 bg-gray-50 rounded-lg">
-        <h4 className="font-medium text-gray-900 mb-2">Keyboard Shortcut</h4>
-        <p className="text-sm text-gray-600">
-          Press <kbd className="px-2 py-1 bg-gray-200 rounded text-xs font-mono">Option</kbd> + <kbd className="px-2 py-1 bg-gray-200 rounded text-xs font-mono">F3</kbd> to toggle this panel
-        </p>
-      </div>
-
       <div className="p-4 bg-gray-50 rounded-lg">
         <h4 className="font-medium text-gray-900 mb-2">Storage</h4>
         <p className="text-sm text-gray-600">

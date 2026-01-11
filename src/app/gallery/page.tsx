@@ -20,13 +20,13 @@ export default async function GalleryPage() {
   const artworks = await getArtworks();
 
   return (
-    <div className="min-h-screen bg-[#fafafa]">
+    <div className="min-h-screen bg-[#fff8f3]">
       {/* Navigation */}
-      <header className="fixed top-0 left-0 right-0 z-40 bg-[#fafafa]/80 backdrop-blur-md border-b border-gray-100/50">
+      <header className="fixed top-0 left-0 right-0 z-40 bg-[#fff8f3]/80 backdrop-blur-md border-b border-gray-100/50">
         <div className="max-w-7xl mx-auto px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <Link href="/" className="text-xl tracking-tight font-light">
-              <span className="font-serif italic">Art</span> Prints
+              Katia<span className="font-serif italic">Prints</span>
             </Link>
             <nav className="flex items-center gap-8">
               <span className="text-sm text-gray-900">Gallery</span>
@@ -47,21 +47,26 @@ export default async function GalleryPage() {
         </div>
       </header>
 
-      <main className="pt-24 pb-16 px-6 lg:px-8">
-        <div className="max-w-7xl mx-auto">
+      <main className="pt-24 pb-16 px-6 lg:px-8 relative overflow-hidden">
+        {/* Background decoration */}
+        <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-gradient-to-bl from-[#e8a87c]/5 to-transparent rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute bottom-1/4 left-0 w-[400px] h-[400px] bg-gradient-to-tr from-[#f5d4be]/10 to-transparent rounded-full blur-3xl pointer-events-none" />
+
+        <div className="max-w-7xl mx-auto relative">
           {/* Header */}
-          <div className="mb-12">
+          <div className="mb-16">
             <nav className="text-sm text-gray-500 mb-4">
-              <Link href="/" className="hover:text-gray-900 transition">Home</Link>
-              <span className="mx-2">/</span>
+              <Link href="/" className="hover:text-[#d4846a] transition">Home</Link>
+              <span className="mx-2 text-[#e8a87c]">/</span>
               <span className="text-gray-900">Gallery</span>
             </nav>
-            <h1 className="text-4xl md:text-5xl font-serif font-light text-gray-900 mb-4">
-              Gallery
+            <h1 className="text-5xl md:text-7xl font-serif font-light text-gray-900 mb-6 fade-in">
+              <span className="gradient-text">Gallery</span>
             </h1>
-            <p className="text-lg text-gray-600 max-w-2xl">
+            <p className="text-lg md:text-xl text-gray-600 max-w-2xl fade-in fade-in-delay-1">
               Browse our complete collection of original artwork prints. Each piece is available in multiple sizes and formats.
             </p>
+            <div className="mt-6 w-24 h-0.5 bg-gradient-to-r from-[#e8a87c] to-transparent fade-in fade-in-delay-2" />
           </div>
 
           {/* Artwork Grid */}
@@ -74,7 +79,7 @@ export default async function GalleryPage() {
                   className="group artwork-card fade-in"
                   style={{ animationDelay: `${index * 0.05}s` }}
                 >
-                  <div className="aspect-[4/5] bg-gray-100 mb-5 overflow-hidden rounded-sm relative">
+                  <div className="aspect-[4/5] bg-gradient-to-br from-gray-50 to-gray-100 mb-5 overflow-hidden rounded-xl relative shadow-sm group-hover:shadow-xl transition-shadow duration-500">
                     {artwork.image_url ? (
                       <img
                         src={artwork.image_url}
@@ -82,49 +87,57 @@ export default async function GalleryPage() {
                         className="w-full h-full object-cover artwork-image"
                       />
                     ) : (
-                      <div className="w-full h-full bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center">
-                        <svg className="w-12 h-12 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <div className="w-full h-full bg-gradient-to-br from-[#fff8f3] to-[#f5d4be]/20 flex items-center justify-center">
+                        <svg className="w-12 h-12 text-[#e8a87c]/40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                         </svg>
                       </div>
                     )}
                     {artwork.featured && (
-                      <div className="absolute top-3 left-3 px-2 py-1 bg-white/90 backdrop-blur-sm text-xs text-gray-700 rounded">
+                      <div className="absolute top-3 left-3 px-3 py-1.5 bg-white/95 backdrop-blur-sm text-xs font-medium text-[#d4846a] rounded-full shadow-sm">
                         Featured
                       </div>
                     )}
+                    {/* Hover overlay */}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
                   </div>
-                  <div className="space-y-1">
-                    <h3 className="text-lg font-medium text-gray-900 group-hover:text-gray-600 transition">
+                  <div className="space-y-1.5">
+                    <h3 className="text-lg font-medium text-gray-900 group-hover:text-[#d4846a] transition">
                       {artwork.title}
                     </h3>
                     <p className="text-sm text-gray-500">{artwork.artist_name}</p>
-                    <p className="text-sm text-gray-900 pt-1">From ${artwork.price_base}</p>
+                    <p className="text-sm font-medium text-[#d4846a] pt-1">From ${artwork.price_base}</p>
                   </div>
                 </Link>
               ))}
             </div>
           ) : (
-            <div className="text-center py-24 bg-white rounded-lg">
-              <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                <svg className="w-10 h-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
+            <div className="text-center py-32 relative">
+              {/* Decorative elements */}
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                <div className="w-64 h-64 rounded-full bg-gradient-to-br from-[#e8a87c]/10 to-transparent blur-3xl" />
               </div>
-              <h3 className="text-xl font-medium text-gray-900 mb-2">No artworks yet</h3>
-              <p className="text-gray-500 mb-6">The gallery is waiting for its first masterpiece</p>
-              <p className="text-sm text-gray-400">
-                Press <kbd className="px-2 py-1 bg-gray-100 rounded text-xs font-mono">Option</kbd> + <kbd className="px-2 py-1 bg-gray-100 rounded text-xs font-mono">F3</kbd> to add artwork
-              </p>
+              <div className="relative">
+                <div className="w-24 h-24 bg-gradient-to-br from-[#fff8f3] to-[#f5d4be]/30 rounded-3xl flex items-center justify-center mx-auto mb-8 shadow-lg">
+                  <svg className="w-12 h-12 text-[#d4846a]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                </div>
+                <h3 className="text-2xl font-serif font-light text-gray-900 mb-3">No artworks yet</h3>
+                <p className="text-gray-500 text-lg">The gallery is waiting for its first masterpiece</p>
+              </div>
             </div>
           )}
         </div>
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-gray-100 py-12 px-6 lg:px-8">
-        <div className="max-w-7xl mx-auto text-center text-sm text-gray-400">
-          <p>&copy; {new Date().getFullYear()} Art Prints. All rights reserved.</p>
+      <footer className="border-t border-[#e8a87c]/20 py-12 px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto text-center">
+          <p className="text-xl tracking-tight font-light mb-2">
+            Katia<span className="font-serif italic text-[#d4846a]">Prints</span>
+          </p>
+          <p className="text-sm text-gray-400">&copy; {new Date().getFullYear()} KatiaPrints. All rights reserved.</p>
         </div>
       </footer>
     </div>

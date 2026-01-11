@@ -14,8 +14,8 @@ const playfair = Playfair_Display({
 });
 
 export const metadata: Metadata = {
-  title: "Art Prints | Original Artwork, Beautiful Prints",
-  description: "Discover and collect high-quality prints of original artwork. Available as posters, canvas prints, and framed pieces.",
+  title: "KatiaPrints | Original Artwork, Beautiful Prints",
+  description: "Discover and collect high-quality prints of Katia's original artwork. Available as posters, canvas prints, and framed pieces.",
 };
 
 export default function RootLayout({
