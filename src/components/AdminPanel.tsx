@@ -557,27 +557,43 @@ function DesignSettings() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState('');
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     loadSettings();
   }, []);
 
   async function loadSettings() {
-    const { data } = await supabase
-      .from('store_settings')
-      .select('*')
-      .single();
-
-    if (data) {
-      setSettings(data);
-    } else {
-      // Create default settings if none exist
-      const { data: newData } = await supabase
+    try {
+      const { data, error: fetchError } = await supabase
         .from('store_settings')
-        .insert({})
-        .select()
+        .select('*')
         .single();
-      if (newData) setSettings(newData);
+
+      if (fetchError) {
+        console.error('Error loading settings:', fetchError);
+        if (fetchError.code === 'PGRST116') {
+          // No rows found - try to create default settings
+          const { data: newData, error: insertError } = await supabase
+            .from('store_settings')
+            .insert({})
+            .select()
+            .single();
+
+          if (insertError) {
+            setError('Please run the database schema in Supabase SQL Editor first.');
+          } else if (newData) {
+            setSettings(newData);
+          }
+        } else {
+          setError('Database table not found. Please run the schema in Supabase SQL Editor.');
+        }
+      } else if (data) {
+        setSettings(data);
+      }
+    } catch (err) {
+      console.error('Error:', err);
+      setError('Failed to connect to database.');
     }
     setIsLoading(false);
   }
@@ -600,10 +616,35 @@ function DesignSettings() {
     }
   }
 
-  if (isLoading || !settings) {
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
         <div className="animate-spin w-6 h-6 border-2 border-gray-300 border-t-gray-900 rounded-full" />
+      </div>
+    );
+  }
+
+  if (error || !settings) {
+    return (
+      <div className="text-center py-12">
+        <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-4">
+          <svg className="w-8 h-8 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+        </div>
+        <h4 className="font-medium text-gray-900 mb-2">Database Setup Required</h4>
+        <p className="text-sm text-gray-600 mb-4">{error || 'Could not load store settings.'}</p>
+        <a
+          href="https://supabase.com/dashboard/project/cfvtatiddqeeknxdrqzp/sql"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-2 text-sm text-blue-600 hover:underline"
+        >
+          Open Supabase SQL Editor
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+          </svg>
+        </a>
       </div>
     );
   }
