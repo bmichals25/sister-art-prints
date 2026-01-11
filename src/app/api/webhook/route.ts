@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { stripe } from '@/lib/stripe';
+import { stripe, retrieveSession } from '@/lib/stripe';
 import { createOrder as createPrintfulOrder } from '@/lib/printful';
 
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
@@ -18,7 +18,23 @@ export async function POST(request: NextRequest) {
   }
 
   if (event.type === 'checkout.session.completed') {
-    const session = event.data.object;
+    const sessionId = event.data.object.id;
+
+    // Retrieve full session with shipping details
+    const session = await retrieveSession(sessionId) as {
+      metadata?: { items?: string };
+      shipping_details?: {
+        name?: string;
+        address?: {
+          line1?: string;
+          city?: string;
+          state?: string;
+          country?: string;
+          postal_code?: string;
+        };
+      };
+      customer_email?: string;
+    };
 
     // Get the items from metadata
     const items = JSON.parse(session.metadata?.items || '[]');
