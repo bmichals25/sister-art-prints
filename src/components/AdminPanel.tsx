@@ -306,6 +306,11 @@ function ArtworkList({ artworks, onUpdate }: { artworks: Artwork[]; onUpdate: ()
             <h4 className="font-medium text-gray-900 truncate">{artwork.title}</h4>
             <p className="text-sm text-gray-500">{artwork.artist_name}</p>
             <p className="text-sm text-gray-900 mt-1">${artwork.price_base}</p>
+            {(artwork as Artwork & { published_by_email?: string }).published_by_email && (
+              <p className="text-xs text-gray-400 mt-1">
+                by {(artwork as Artwork & { published_by_email?: string }).published_by_email}
+              </p>
+            )}
           </div>
           <div className="flex flex-col gap-2" onClick={(e) => e.stopPropagation()}>
             <button
@@ -577,6 +582,9 @@ function AddArtwork({ onSuccess }: { onSuccess: () => void }) {
         .from('artworks')
         .getPublicUrl(fileName);
 
+      // Get current user
+      const { data: { user } } = await supabase.auth.getUser();
+
       // Create artwork record
       const { error: insertError } = await supabase.from('artworks').insert({
         title: formData.title,
@@ -587,6 +595,8 @@ function AddArtwork({ onSuccess }: { onSuccess: () => void }) {
         image_url: urlData.publicUrl,
         thumbnail_url: urlData.publicUrl,
         tags: [],
+        published_by: user?.id,
+        published_by_email: user?.email,
       });
 
       if (insertError) throw insertError;
