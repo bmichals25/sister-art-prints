@@ -61,10 +61,10 @@ export default function ArtworkPage({ params }: { params: Promise<{ id: string }
   }, [resolvedParams.id]);
 
   // Fetch mockup when type/size changes
-  const fetchMockup = useCallback(async (type: ProductType, size: string, imageUrl: string) => {
+  const fetchMockup = useCallback(async (type: ProductType, size: string, imageUrl: string, artworkId: string) => {
     const cacheKey = `${type}-${size}`;
 
-    // Check cache first
+    // Check local cache first
     if (mockupCache[cacheKey]) {
       setMockupUrl(mockupCache[cacheKey]);
       return;
@@ -79,6 +79,7 @@ export default function ArtworkPage({ params }: { params: Promise<{ id: string }
           imageUrl,
           productType: type,
           size,
+          artworkId, // Pass artworkId for server-side caching
         }),
       });
 
@@ -98,10 +99,10 @@ export default function ArtworkPage({ params }: { params: Promise<{ id: string }
 
   // Trigger mockup fetch when selection changes
   useEffect(() => {
-    if (artwork?.image_url && selectedType && selectedOption) {
-      fetchMockup(selectedType, selectedOption.size, artwork.image_url);
+    if (artwork?.id && artwork?.image_url && selectedType && selectedOption) {
+      fetchMockup(selectedType, selectedOption.size, artwork.image_url, artwork.id);
     }
-  }, [artwork?.image_url, selectedType, selectedOption, fetchMockup]);
+  }, [artwork?.id, artwork?.image_url, selectedType, selectedOption, fetchMockup]);
 
   const filteredOptions = printOptions.filter((opt) => opt.type === selectedType);
 

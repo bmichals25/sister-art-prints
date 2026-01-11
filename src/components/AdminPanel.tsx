@@ -240,6 +240,8 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
 }
 
 function ArtworkList({ artworks, onUpdate }: { artworks: Artwork[]; onUpdate: () => void }) {
+  const [editingArtwork, setEditingArtwork] = useState<Artwork | null>(null);
+
   async function handleDelete(id: string) {
     if (!confirm('Are you sure you want to delete this artwork?')) return;
 
@@ -250,6 +252,16 @@ function ArtworkList({ artworks, onUpdate }: { artworks: Artwork[]; onUpdate: ()
   async function toggleFeatured(id: string, currentValue: boolean) {
     await supabase.from('artworks').update({ featured: !currentValue }).eq('id', id);
     onUpdate();
+  }
+
+  if (editingArtwork) {
+    return (
+      <EditArtwork
+        artwork={editingArtwork}
+        onSave={() => { setEditingArtwork(null); onUpdate(); }}
+        onCancel={() => setEditingArtwork(null)}
+      />
+    );
   }
 
   if (artworks.length === 0) {
@@ -268,10 +280,12 @@ function ArtworkList({ artworks, onUpdate }: { artworks: Artwork[]; onUpdate: ()
 
   return (
     <div className="space-y-4">
+      <p className="text-sm text-gray-500 mb-4">Click on an artwork to edit it</p>
       {artworks.map((artwork) => (
         <div
           key={artwork.id}
-          className="flex gap-4 p-4 bg-gray-50 rounded-lg"
+          onClick={() => setEditingArtwork(artwork)}
+          className="flex gap-4 p-4 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition"
         >
           <div className="w-20 h-20 bg-gray-200 rounded-lg overflow-hidden flex-shrink-0">
             {artwork.image_url ? (
@@ -293,7 +307,7 @@ function ArtworkList({ artworks, onUpdate }: { artworks: Artwork[]; onUpdate: ()
             <p className="text-sm text-gray-500">{artwork.artist_name}</p>
             <p className="text-sm text-gray-900 mt-1">${artwork.price_base}</p>
           </div>
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-2" onClick={(e) => e.stopPropagation()}>
             <button
               onClick={() => toggleFeatured(artwork.id, artwork.featured)}
               className={`px-3 py-1 text-xs rounded-full transition ${
@@ -314,6 +328,205 @@ function ArtworkList({ artworks, onUpdate }: { artworks: Artwork[]; onUpdate: ()
         </div>
       ))}
     </div>
+  );
+}
+
+const PRINT_OPTIONS = [
+  { id: 'poster-12x18', type: 'poster', label: 'Poster 12x18"', price: 24.99 },
+  { id: 'poster-18x24', type: 'poster', label: 'Poster 18x24"', price: 34.99 },
+  { id: 'poster-24x36', type: 'poster', label: 'Poster 24x36"', price: 44.99 },
+  { id: 'canvas-12x16', type: 'canvas', label: 'Canvas 12x16"', price: 49.99 },
+  { id: 'canvas-18x24', type: 'canvas', label: 'Canvas 18x24"', price: 79.99 },
+  { id: 'canvas-24x36', type: 'canvas', label: 'Canvas 24x36"', price: 119.99 },
+  { id: 'framed-12x18', type: 'framed', label: 'Framed 12x18"', price: 59.99 },
+  { id: 'framed-18x24', type: 'framed', label: 'Framed 18x24"', price: 89.99 },
+  { id: 'framed-24x36', type: 'framed', label: 'Framed 24x36"', price: 129.99 },
+];
+
+function EditArtwork({ artwork, onSave, onCancel }: { artwork: Artwork; onSave: () => void; onCancel: () => void }) {
+  const [isSaving, setIsSaving] = useState(false);
+  const [formData, setFormData] = useState({
+    title: artwork.title,
+    description: artwork.description || '',
+    artist_name: artwork.artist_name,
+    price_base: artwork.price_base.toString(),
+    featured: artwork.featured,
+  });
+  const [enabledPrints, setEnabledPrints] = useState<string[]>(
+    (artwork as Artwork & { enabled_prints?: string[] }).enabled_prints || PRINT_OPTIONS.map(p => p.id)
+  );
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setIsSaving(true);
+
+    const { error } = await supabase
+      .from('artworks')
+      .update({
+        title: formData.title,
+        description: formData.description,
+        artist_name: formData.artist_name,
+        price_base: parseFloat(formData.price_base),
+        featured: formData.featured,
+        enabled_prints: enabledPrints,
+      })
+      .eq('id', artwork.id);
+
+    setIsSaving(false);
+    if (error) {
+      alert('Failed to save. Please try again.');
+    } else {
+      onSave();
+    }
+  }
+
+  function togglePrint(printId: string) {
+    setEnabledPrints(prev =>
+      prev.includes(printId)
+        ? prev.filter(id => id !== printId)
+        : [...prev, printId]
+    );
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between pb-4 border-b border-gray-100">
+        <h3 className="font-medium text-gray-900">Edit Artwork</h3>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="text-sm text-gray-500 hover:text-gray-700"
+        >
+          Cancel
+        </button>
+      </div>
+
+      {/* Preview */}
+      <div className="flex items-center gap-4">
+        <div className="w-24 h-24 bg-gray-200 rounded-lg overflow-hidden flex-shrink-0">
+          <img
+            src={artwork.image_url}
+            alt={artwork.title}
+            className="w-full h-full object-cover"
+          />
+        </div>
+        <div>
+          <p className="text-sm text-gray-500">Current image</p>
+          <p className="text-xs text-gray-400 mt-1">Image cannot be changed</p>
+        </div>
+      </div>
+
+      {/* Title */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">Title</label>
+        <input
+          type="text"
+          value={formData.title}
+          onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+          className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900"
+          required
+        />
+      </div>
+
+      {/* Artist */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">Artist Name</label>
+        <input
+          type="text"
+          value={formData.artist_name}
+          onChange={(e) => setFormData({ ...formData, artist_name: e.target.value })}
+          className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900"
+          required
+        />
+      </div>
+
+      {/* Description */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
+        <textarea
+          value={formData.description}
+          onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+          className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 resize-none"
+          rows={3}
+        />
+      </div>
+
+      {/* Price */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">Base Price ($)</label>
+        <input
+          type="number"
+          step="0.01"
+          min="0"
+          value={formData.price_base}
+          onChange={(e) => setFormData({ ...formData, price_base: e.target.value })}
+          className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900"
+          required
+        />
+      </div>
+
+      {/* Featured */}
+      <div className="flex items-center gap-3">
+        <input
+          type="checkbox"
+          id="edit-featured"
+          checked={formData.featured}
+          onChange={(e) => setFormData({ ...formData, featured: e.target.checked })}
+          className="w-4 h-4 rounded border-gray-300 text-gray-900 focus:ring-gray-900"
+        />
+        <label htmlFor="edit-featured" className="text-sm text-gray-700">
+          Feature on homepage
+        </label>
+      </div>
+
+      {/* Print Options */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-3">Available Print Options</label>
+        <div className="space-y-2">
+          {['poster', 'canvas', 'framed'].map((type) => (
+            <div key={type} className="mb-4">
+              <h4 className="text-xs font-medium text-gray-500 uppercase mb-2">{type}</h4>
+              <div className="space-y-2">
+                {PRINT_OPTIONS.filter(p => p.type === type).map((option) => (
+                  <label
+                    key={option.id}
+                    className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={enabledPrints.includes(option.id)}
+                      onChange={() => togglePrint(option.id)}
+                      className="w-4 h-4 rounded border-gray-300 text-gray-900 focus:ring-gray-900"
+                    />
+                    <span className="flex-1 text-sm">{option.label}</span>
+                    <span className="text-sm text-gray-500">${option.price}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Submit */}
+      <div className="flex gap-3 pt-4 border-t border-gray-100">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="flex-1 py-3 border border-gray-200 rounded-lg font-medium hover:bg-gray-50 transition"
+        >
+          Cancel
+        </button>
+        <button
+          type="submit"
+          disabled={isSaving}
+          className="flex-1 bg-gray-900 text-white py-3 rounded-lg font-medium hover:bg-gray-800 transition disabled:opacity-50"
+        >
+          {isSaving ? 'Saving...' : 'Save Changes'}
+        </button>
+      </div>
+    </form>
   );
 }
 
