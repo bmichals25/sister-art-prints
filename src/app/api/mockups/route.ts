@@ -16,41 +16,79 @@ const PRINTFUL_PRODUCTS: Record<string, number> = {
   framed: 2,
 };
 
-// Variant IDs for different sizes
-const VARIANT_IDS: Record<string, Record<string, number>> = {
-  poster: {
-    '12×18"': 3876,
-    '18×24"': 1,
-    '24×36"': 2,
+// Variant IDs for different sizes - organized by orientation
+const VARIANT_IDS: Record<string, Record<string, Record<string, number>>> = {
+  portrait: {
+    poster: {
+      '12×18"': 3876,
+      '18×24"': 1,
+      '24×36"': 2,
+    },
+    canvas: {
+      '12×16"': 5,
+      '18×24"': 7,
+      '24×36"': 825,
+    },
+    framed: {
+      '12×18"': 4398,
+      '18×24"': 3,
+      '24×36"': 4,
+    },
   },
-  canvas: {
-    '12×16"': 5,
-    '18×24"': 7,
-    '24×36"': 825,
-  },
-  framed: {
-    '12×18"': 4398,
-    '18×24"': 3,
-    '24×36"': 4,
+  landscape: {
+    poster: {
+      '18×12"': 3877,
+      '24×18"': 10,
+      '36×24"': 11,
+    },
+    canvas: {
+      '16×12"': 6,
+      '24×18"': 8,
+      '36×24"': 826,
+    },
+    framed: {
+      '18×12"': 4399,
+      '24×18"': 12,
+      '36×24"': 13,
+    },
   },
 };
 
 // Print area dimensions for each product/size (from Printful templates)
-const PRINT_AREAS: Record<string, Record<string, { width: number; height: number }>> = {
-  poster: {
-    '12×18"': { width: 1800, height: 2700 },
-    '18×24"': { width: 2700, height: 3600 },
-    '24×36"': { width: 3600, height: 5400 },
+const PRINT_AREAS: Record<string, Record<string, Record<string, { width: number; height: number }>>> = {
+  portrait: {
+    poster: {
+      '12×18"': { width: 1800, height: 2700 },
+      '18×24"': { width: 2700, height: 3600 },
+      '24×36"': { width: 3600, height: 5400 },
+    },
+    canvas: {
+      '12×16"': { width: 1800, height: 2400 },
+      '18×24"': { width: 2700, height: 3600 },
+      '24×36"': { width: 3600, height: 5400 },
+    },
+    framed: {
+      '12×18"': { width: 1800, height: 2700 },
+      '18×24"': { width: 2700, height: 3600 },
+      '24×36"': { width: 3600, height: 5400 },
+    },
   },
-  canvas: {
-    '12×16"': { width: 1800, height: 2400 },
-    '18×24"': { width: 2700, height: 3600 },
-    '24×36"': { width: 3600, height: 5400 },
-  },
-  framed: {
-    '12×18"': { width: 1800, height: 2700 },
-    '18×24"': { width: 2700, height: 3600 },
-    '24×36"': { width: 3600, height: 5400 },
+  landscape: {
+    poster: {
+      '18×12"': { width: 2700, height: 1800 },
+      '24×18"': { width: 3600, height: 2700 },
+      '36×24"': { width: 5400, height: 3600 },
+    },
+    canvas: {
+      '16×12"': { width: 2400, height: 1800 },
+      '24×18"': { width: 3600, height: 2700 },
+      '36×24"': { width: 5400, height: 3600 },
+    },
+    framed: {
+      '18×12"': { width: 2700, height: 1800 },
+      '24×18"': { width: 3600, height: 2700 },
+      '36×24"': { width: 5400, height: 3600 },
+    },
   },
 };
 
@@ -76,7 +114,7 @@ async function printfulRequest<T>(endpoint: string, options: { method?: string; 
 
 export async function POST(request: NextRequest) {
   try {
-    const { imageUrl, productType, size, artworkId } = await request.json();
+    const { imageUrl, productType, size, artworkId, orientation = 'portrait' } = await request.json();
 
     if (!imageUrl || !productType) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
@@ -87,14 +125,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid product type' }, { status: 400 });
     }
 
-    const variants = VARIANT_IDS[productType];
+    // Get variants for the specified orientation
+    const orientationVariants = VARIANT_IDS[orientation] || VARIANT_IDS.portrait;
+    const variants = orientationVariants[productType];
     const variantId = size && variants ? variants[size] : Object.values(variants || {})[0];
 
     if (!variantId) {
       return NextResponse.json({ error: 'Invalid size for product type' }, { status: 400 });
     }
 
-    // Check cache first if artworkId is provided
+    // Check cache first if artworkId is provided (include orientation in cache key)
     if (artworkId) {
       const { data: cached } = await supabase
         .from('mockup_cache')
@@ -102,6 +142,7 @@ export async function POST(request: NextRequest) {
         .eq('artwork_id', artworkId)
         .eq('product_type', productType)
         .eq('size', size)
+        .eq('orientation', orientation)
         .single();
 
       if (cached?.mockup_url) {
@@ -112,8 +153,9 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Get print area for this product/size
-    const printArea = PRINT_AREAS[productType]?.[size] || { width: 1800, height: 2700 };
+    // Get print area for this product/size/orientation
+    const orientationAreas = PRINT_AREAS[orientation] || PRINT_AREAS.portrait;
+    const printArea = orientationAreas[productType]?.[size] || { width: 1800, height: 2700 };
 
     // Create mockup task with Printful
     const task = await printfulRequest<{ task_key: string; status: string }>(
@@ -173,9 +215,10 @@ export async function POST(request: NextRequest) {
           artwork_id: artworkId,
           product_type: productType,
           size: size,
+          orientation: orientation,
           mockup_url: mockupUrl,
         }, {
-          onConflict: 'artwork_id,product_type,size',
+          onConflict: 'artwork_id,product_type,size,orientation',
         });
     }
 

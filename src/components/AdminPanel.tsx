@@ -337,17 +337,48 @@ function ArtworkList({ artworks, onUpdate }: { artworks: Artwork[]; onUpdate: ()
   );
 }
 
-const PRINT_OPTIONS = [
-  { id: 'poster-12x18', type: 'poster', label: 'Poster 12x18"', price: 24.99 },
-  { id: 'poster-18x24', type: 'poster', label: 'Poster 18x24"', price: 34.99 },
-  { id: 'poster-24x36', type: 'poster', label: 'Poster 24x36"', price: 44.99 },
-  { id: 'canvas-12x16', type: 'canvas', label: 'Canvas 12x16"', price: 49.99 },
-  { id: 'canvas-18x24', type: 'canvas', label: 'Canvas 18x24"', price: 79.99 },
-  { id: 'canvas-24x36', type: 'canvas', label: 'Canvas 24x36"', price: 119.99 },
-  { id: 'framed-12x18', type: 'framed', label: 'Framed 12x18"', price: 59.99 },
-  { id: 'framed-18x24', type: 'framed', label: 'Framed 18x24"', price: 89.99 },
-  { id: 'framed-24x36', type: 'framed', label: 'Framed 24x36"', price: 129.99 },
-];
+// Print options organized by orientation
+const PRINT_OPTIONS_BY_ORIENTATION = {
+  portrait: [
+    { id: 'poster-12x18', type: 'poster', label: 'Poster 12×18"', size: '12×18"', price: 24.99 },
+    { id: 'poster-18x24', type: 'poster', label: 'Poster 18×24"', size: '18×24"', price: 34.99 },
+    { id: 'poster-24x36', type: 'poster', label: 'Poster 24×36"', size: '24×36"', price: 44.99 },
+    { id: 'canvas-12x16', type: 'canvas', label: 'Canvas 12×16"', size: '12×16"', price: 49.99 },
+    { id: 'canvas-18x24', type: 'canvas', label: 'Canvas 18×24"', size: '18×24"', price: 79.99 },
+    { id: 'canvas-24x36', type: 'canvas', label: 'Canvas 24×36"', size: '24×36"', price: 119.99 },
+    { id: 'framed-12x18', type: 'framed', label: 'Framed 12×18"', size: '12×18"', price: 59.99 },
+    { id: 'framed-18x24', type: 'framed', label: 'Framed 18×24"', size: '18×24"', price: 89.99 },
+    { id: 'framed-24x36', type: 'framed', label: 'Framed 24×36"', size: '24×36"', price: 129.99 },
+  ],
+  landscape: [
+    { id: 'poster-18x12', type: 'poster', label: 'Poster 18×12"', size: '18×12"', price: 24.99 },
+    { id: 'poster-24x18', type: 'poster', label: 'Poster 24×18"', size: '24×18"', price: 34.99 },
+    { id: 'poster-36x24', type: 'poster', label: 'Poster 36×24"', size: '36×24"', price: 44.99 },
+    { id: 'canvas-16x12', type: 'canvas', label: 'Canvas 16×12"', size: '16×12"', price: 49.99 },
+    { id: 'canvas-24x18', type: 'canvas', label: 'Canvas 24×18"', size: '24×18"', price: 79.99 },
+    { id: 'canvas-36x24', type: 'canvas', label: 'Canvas 36×24"', size: '36×24"', price: 119.99 },
+    { id: 'framed-18x12', type: 'framed', label: 'Framed 18×12"', size: '18×12"', price: 59.99 },
+    { id: 'framed-24x18', type: 'framed', label: 'Framed 24×18"', size: '24×18"', price: 89.99 },
+    { id: 'framed-36x24', type: 'framed', label: 'Framed 36×24"', size: '36×24"', price: 129.99 },
+  ],
+};
+
+// Default product types
+const DEFAULT_PRODUCT_TYPES = ['poster', 'canvas', 'framed'];
+
+// Helper to get print options for current orientation
+const getPrintOptions = (orientation: 'portrait' | 'landscape') => PRINT_OPTIONS_BY_ORIENTATION[orientation];
+
+// Custom product type interface
+interface CustomProduct {
+  id: string;
+  name: string;
+  variants: Array<{
+    id: string;
+    size: string;
+    price: number;
+  }>;
+}
 
 interface ArtworkPosition {
   scale: number;
@@ -355,28 +386,107 @@ interface ArtworkPosition {
   offsetY: number;
 }
 
+type EditSection = 'details' | 'prints' | 'positioning';
+
 function EditArtwork({ artwork, onSave, onCancel }: { artwork: Artwork; onSave: () => void; onCancel: () => void }) {
   const [isSaving, setIsSaving] = useState(false);
+  const [activeSection, setActiveSection] = useState<EditSection>('details');
+  const [orientation, setOrientation] = useState<'portrait' | 'landscape'>(
+    (artwork as Artwork & { orientation?: 'portrait' | 'landscape' }).orientation || 'portrait'
+  );
   const [formData, setFormData] = useState({
     title: artwork.title,
     description: artwork.description || '',
     artist_name: artwork.artist_name,
-    price_base: artwork.price_base.toString(),
     featured: artwork.featured,
   });
   const [enabledPrints, setEnabledPrints] = useState<string[]>(
-    (artwork as Artwork & { enabled_prints?: string[] }).enabled_prints || PRINT_OPTIONS.map(p => p.id)
+    (artwork as Artwork & { enabled_prints?: string[] }).enabled_prints || getPrintOptions(orientation).map(p => p.id)
+  );
+  // Custom prices for each print option (overrides default prices)
+  const [customPrices, setCustomPrices] = useState<Record<string, number>>(
+    (artwork as Artwork & { custom_prices?: Record<string, number> }).custom_prices || {}
   );
   const [artworkPositions, setArtworkPositions] = useState<Record<string, ArtworkPosition>>(
     (artwork as Artwork & { artwork_positions?: Record<string, ArtworkPosition> }).artwork_positions || {}
   );
+  const [customProducts, setCustomProducts] = useState<CustomProduct[]>(
+    (artwork as Artwork & { custom_products?: CustomProduct[] }).custom_products || []
+  );
+  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
+  const [showAddProduct, setShowAddProduct] = useState(false);
+  const [newProductName, setNewProductName] = useState('');
+  const [newVariantSize, setNewVariantSize] = useState('');
+  const [newVariantPrice, setNewVariantPrice] = useState('');
+  const [editingProduct, setEditingProduct] = useState<string | null>(null);
 
   const handlePositionsChange = useCallback((positions: Record<string, ArtworkPosition>) => {
     setArtworkPositions(positions);
   }, []);
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  const toggleSection = (sectionId: string) => {
+    setCollapsedSections(prev => ({ ...prev, [sectionId]: !prev[sectionId] }));
+  };
+
+  const addCustomProduct = () => {
+    if (!newProductName.trim()) return;
+    const productId = newProductName.toLowerCase().replace(/\s+/g, '-');
+    if (customProducts.some(p => p.id === productId) || DEFAULT_PRODUCT_TYPES.includes(productId)) {
+      alert('A product with this name already exists');
+      return;
+    }
+    setCustomProducts([...customProducts, { id: productId, name: newProductName.trim(), variants: [] }]);
+    setNewProductName('');
+    setShowAddProduct(false);
+    setEditingProduct(productId);
+  };
+
+  const removeCustomProduct = (productId: string) => {
+    setCustomProducts(customProducts.filter(p => p.id !== productId));
+    setEnabledPrints(enabledPrints.filter(id => !id.startsWith(`${productId}-`)));
+  };
+
+  const addVariantToProduct = (productId: string) => {
+    if (!newVariantSize.trim() || !newVariantPrice) return;
+    const variantId = `${productId}-${newVariantSize.toLowerCase().replace(/\s+/g, '-')}`;
+    setCustomProducts(customProducts.map(p => {
+      if (p.id !== productId) return p;
+      if (p.variants.some(v => v.id === variantId)) return p;
+      return {
+        ...p,
+        variants: [...p.variants, { id: variantId, size: newVariantSize.trim(), price: parseFloat(newVariantPrice) }]
+      };
+    }));
+    setEnabledPrints([...enabledPrints, variantId]);
+    setNewVariantSize('');
+    setNewVariantPrice('');
+  };
+
+  const removeVariant = (productId: string, variantId: string) => {
+    setCustomProducts(customProducts.map(p => {
+      if (p.id !== productId) return p;
+      return { ...p, variants: p.variants.filter(v => v.id !== variantId) };
+    }));
+    setEnabledPrints(enabledPrints.filter(id => id !== variantId));
+  };
+
+  // Get price for a print option (custom price overrides default)
+  const getPrice = (optionId: string, defaultPrice: number) => {
+    return customPrices[optionId] ?? defaultPrice;
+  };
+
+  // Set custom price for an option
+  const setPrice = (optionId: string, price: number) => {
+    setCustomPrices(prev => ({ ...prev, [optionId]: price }));
+  };
+
+  // When orientation changes, reset enabled prints to new orientation's options
+  function handleOrientationChange(newOrientation: 'portrait' | 'landscape') {
+    setOrientation(newOrientation);
+    setEnabledPrints(getPrintOptions(newOrientation).map(p => p.id));
+  }
+
+  async function handleSubmit() {
     setIsSaving(true);
 
     const { error } = await supabase
@@ -385,10 +495,12 @@ function EditArtwork({ artwork, onSave, onCancel }: { artwork: Artwork; onSave: 
         title: formData.title,
         description: formData.description,
         artist_name: formData.artist_name,
-        price_base: parseFloat(formData.price_base),
         featured: formData.featured,
+        orientation: orientation,
         enabled_prints: enabledPrints,
         artwork_positions: artworkPositions,
+        custom_products: customProducts,
+        custom_prices: customPrices,
       })
       .eq('id', artwork.id);
 
@@ -400,7 +512,7 @@ function EditArtwork({ artwork, onSave, onCancel }: { artwork: Artwork; onSave: 
       fetch('/api/mockups/pregenerate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ artworkId: artwork.id }),
+        body: JSON.stringify({ artworkId: artwork.id, orientation }),
       }).catch(console.error);
 
       setIsSaving(false);
@@ -416,159 +528,446 @@ function EditArtwork({ artwork, onSave, onCancel }: { artwork: Artwork; onSave: 
     );
   }
 
-  return (
-    <form onSubmit={handleSubmit} className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between pb-4 border-b border-gray-100">
-        <h3 className="font-medium text-gray-900">Edit Artwork</h3>
-        <button
-          type="button"
-          onClick={onCancel}
-          className="text-sm text-gray-500 hover:text-gray-700"
-        >
-          Cancel
-        </button>
-      </div>
+  const sections: { id: EditSection; label: string; icon: React.ReactNode }[] = [
+    {
+      id: 'details',
+      label: 'Details',
+      icon: (
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+        </svg>
+      ),
+    },
+    {
+      id: 'prints',
+      label: 'Print Options',
+      icon: (
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+        </svg>
+      ),
+    },
+    {
+      id: 'positioning',
+      label: 'Positioning',
+      icon: (
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+        </svg>
+      ),
+    },
+  ];
 
-      {/* Preview */}
-      <div className="flex items-center gap-4">
-        <div className="w-24 h-24 bg-gray-200 rounded-lg overflow-hidden flex-shrink-0">
+  return (
+    <div className="flex flex-col h-full -m-6">
+      {/* Header with Preview */}
+      <div className="flex items-center gap-4 p-4 border-b border-gray-100 bg-gray-50">
+        <div className="w-16 h-16 bg-gray-200 rounded-lg overflow-hidden flex-shrink-0">
           <img
             src={artwork.image_url}
             alt={artwork.title}
             className="w-full h-full object-cover"
           />
         </div>
-        <div>
-          <p className="text-sm text-gray-500">Current image</p>
-          <p className="text-xs text-gray-400 mt-1">Image cannot be changed</p>
+        <div className="flex-1 min-w-0">
+          <h3 className="font-medium text-gray-900 truncate">{formData.title || 'Edit Artwork'}</h3>
+          <p className="text-sm text-gray-500">{formData.artist_name}</p>
         </div>
-      </div>
-
-      {/* Title */}
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">Title</label>
-        <input
-          type="text"
-          value={formData.title}
-          onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-          className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900"
-          required
-        />
-      </div>
-
-      {/* Artist */}
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">Artist Name</label>
-        <input
-          type="text"
-          value={formData.artist_name}
-          onChange={(e) => setFormData({ ...formData, artist_name: e.target.value })}
-          className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900"
-          required
-        />
-      </div>
-
-      {/* Description */}
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
-        <textarea
-          value={formData.description}
-          onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-          className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 resize-none"
-          rows={3}
-        />
-      </div>
-
-      {/* Price */}
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">Base Price ($)</label>
-        <input
-          type="number"
-          step="0.01"
-          min="0"
-          value={formData.price_base}
-          onChange={(e) => setFormData({ ...formData, price_base: e.target.value })}
-          className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900"
-          required
-        />
-      </div>
-
-      {/* Featured */}
-      <div className="flex items-center gap-3">
-        <input
-          type="checkbox"
-          id="edit-featured"
-          checked={formData.featured}
-          onChange={(e) => setFormData({ ...formData, featured: e.target.checked })}
-          className="w-4 h-4 rounded border-gray-300 text-gray-900 focus:ring-gray-900"
-        />
-        <label htmlFor="edit-featured" className="text-sm text-gray-700">
-          Feature on homepage
-        </label>
-      </div>
-
-      {/* Print Options */}
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-3">Available Print Options</label>
-        <div className="space-y-2">
-          {['poster', 'canvas', 'framed'].map((type) => (
-            <div key={type} className="mb-4">
-              <h4 className="text-xs font-medium text-gray-500 uppercase mb-2">{type}</h4>
-              <div className="space-y-2">
-                {PRINT_OPTIONS.filter(p => p.type === type).map((option) => (
-                  <label
-                    key={option.id}
-                    className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={enabledPrints.includes(option.id)}
-                      onChange={() => togglePrint(option.id)}
-                      className="w-4 h-4 rounded border-gray-300 text-gray-900 focus:ring-gray-900"
-                    />
-                    <span className="flex-1 text-sm">{option.label}</span>
-                    <span className="text-sm text-gray-500">${option.price}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Artwork Positioning */}
-      <div className="border-t border-gray-100 pt-6">
-        <ArtworkPositionerTabs
-          imageUrl={artwork.image_url}
-          positions={artworkPositions}
-          onPositionsChange={handlePositionsChange}
-        />
-      </div>
-
-      {/* Submit */}
-      <div className="flex gap-3 pt-4 border-t border-gray-100">
         <button
           type="button"
           onClick={onCancel}
-          className="flex-1 py-3 border border-gray-200 rounded-lg font-medium hover:bg-gray-50 transition"
+          className="p-2 text-gray-400 hover:text-gray-600 transition"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+
+      {/* Section Tabs */}
+      <div className="flex border-b border-gray-100">
+        {sections.map((section) => (
+          <button
+            key={section.id}
+            type="button"
+            onClick={() => setActiveSection(section.id)}
+            className={`flex-1 flex items-center justify-center gap-2 py-3 text-sm font-medium transition ${
+              activeSection === section.id
+                ? 'text-gray-900 border-b-2 border-gray-900 bg-white'
+                : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+            }`}
+          >
+            {section.icon}
+            {section.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Section Content */}
+      <div className="flex-1 overflow-y-auto p-6">
+        {/* Details Section */}
+        {activeSection === 'details' && (
+          <div className="space-y-5">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Title</label>
+              <input
+                type="text"
+                value={formData.title}
+                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 text-sm"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Artist Name</label>
+              <input
+                type="text"
+                value={formData.artist_name}
+                onChange={(e) => setFormData({ ...formData, artist_name: e.target.value })}
+                className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 text-sm"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
+              <textarea
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 resize-none text-sm"
+                rows={3}
+              />
+            </div>
+
+            <div className="flex items-center gap-3 pt-2">
+              <input
+                type="checkbox"
+                id="edit-featured-checkbox"
+                checked={formData.featured}
+                onChange={(e) => setFormData({ ...formData, featured: e.target.checked })}
+                className="w-4 h-4 rounded border-gray-300 text-gray-900 focus:ring-gray-900"
+              />
+              <label htmlFor="edit-featured-checkbox" className="text-sm text-gray-700 cursor-pointer">
+                Feature on homepage
+              </label>
+            </div>
+          </div>
+        )}
+
+        {/* Print Options Section */}
+        {activeSection === 'prints' && (
+          <div className="space-y-4">
+            {/* Orientation */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Orientation</label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleOrientationChange('portrait')}
+                  className={`p-2.5 rounded-lg border-2 transition flex items-center justify-center gap-2 ${
+                    orientation === 'portrait'
+                      ? 'border-gray-900 bg-gray-50'
+                      : 'border-gray-200 hover:border-gray-300'
+                  }`}
+                >
+                  <div className={`w-5 h-7 rounded border-2 ${orientation === 'portrait' ? 'border-gray-900 bg-gray-200' : 'border-gray-300'}`} />
+                  <span className="text-sm font-medium">Portrait</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleOrientationChange('landscape')}
+                  className={`p-2.5 rounded-lg border-2 transition flex items-center justify-center gap-2 ${
+                    orientation === 'landscape'
+                      ? 'border-gray-900 bg-gray-50'
+                      : 'border-gray-200 hover:border-gray-300'
+                  }`}
+                >
+                  <div className={`w-7 h-5 rounded border-2 ${orientation === 'landscape' ? 'border-gray-900 bg-gray-200' : 'border-gray-300'}`} />
+                  <span className="text-sm font-medium">Landscape</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Default Print Types - Collapsible */}
+            <div className="space-y-2">
+              {DEFAULT_PRODUCT_TYPES.map((type) => {
+                const options = getPrintOptions(orientation).filter(p => p.type === type);
+                const enabledCount = options.filter(o => enabledPrints.includes(o.id)).length;
+                const isCollapsed = collapsedSections[type];
+
+                return (
+                  <div key={type} className="border border-gray-200 rounded-lg overflow-hidden">
+                    <button
+                      type="button"
+                      onClick={() => toggleSection(type)}
+                      className="w-full flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 transition"
+                    >
+                      <div className="flex items-center gap-2">
+                        <svg
+                          className={`w-4 h-4 text-gray-400 transition-transform ${isCollapsed ? '' : 'rotate-90'}`}
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                        </svg>
+                        <span className="text-sm font-medium text-gray-700 capitalize">{type}</span>
+                      </div>
+                      <span className="text-xs text-gray-500 bg-white px-2 py-0.5 rounded-full">
+                        {enabledCount}/{options.length}
+                      </span>
+                    </button>
+                    {!isCollapsed && (
+                      <div className="p-3 space-y-2">
+                        {options.map((option) => {
+                          const isEnabled = enabledPrints.includes(option.id);
+                          const currentPrice = getPrice(option.id, option.price);
+                          return (
+                            <div
+                              key={option.id}
+                              className={`flex items-center gap-3 p-2 rounded-lg transition ${
+                                isEnabled ? 'bg-gray-100' : 'bg-gray-50 opacity-60'
+                              }`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={isEnabled}
+                                onChange={() => togglePrint(option.id)}
+                                className="w-4 h-4 rounded border-gray-300 text-gray-900 focus:ring-gray-900"
+                              />
+                              <span className="flex-1 text-sm font-medium text-gray-700">{option.size}</span>
+                              <div className="flex items-center gap-1">
+                                <span className="text-gray-400 text-sm">$</span>
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  min="0"
+                                  value={currentPrice}
+                                  onChange={(e) => setPrice(option.id, parseFloat(e.target.value) || 0)}
+                                  className="w-16 px-2 py-1 text-sm text-right border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-gray-400"
+                                />
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+
+              {/* Custom Products - Collapsible */}
+              {customProducts.map((product) => {
+                const enabledCount = product.variants.filter(v => enabledPrints.includes(v.id)).length;
+                const isCollapsed = collapsedSections[product.id];
+                const isEditing = editingProduct === product.id;
+
+                return (
+                  <div key={product.id} className="border border-blue-200 rounded-lg overflow-hidden bg-blue-50/30">
+                    <button
+                      type="button"
+                      onClick={() => toggleSection(product.id)}
+                      className="w-full flex items-center justify-between p-3 bg-blue-50 hover:bg-blue-100 transition"
+                    >
+                      <div className="flex items-center gap-2">
+                        <svg
+                          className={`w-4 h-4 text-blue-400 transition-transform ${isCollapsed ? '' : 'rotate-90'}`}
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                        </svg>
+                        <span className="text-sm font-medium text-blue-700">{product.name}</span>
+                        <span className="text-xs text-blue-500 bg-blue-100 px-1.5 py-0.5 rounded">Custom</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-blue-500 bg-white px-2 py-0.5 rounded-full">
+                          {enabledCount}/{product.variants.length}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); removeCustomProduct(product.id); }}
+                          className="p-1 text-red-400 hover:text-red-600 transition"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                        </button>
+                      </div>
+                    </button>
+                    {!isCollapsed && (
+                      <div className="p-3 space-y-3">
+                        {/* Existing variants */}
+                        {product.variants.length > 0 && (
+                          <div className="space-y-2">
+                            {product.variants.map((variant) => {
+                              const isEnabled = enabledPrints.includes(variant.id);
+                              const currentPrice = getPrice(variant.id, variant.price);
+                              return (
+                                <div
+                                  key={variant.id}
+                                  className={`flex items-center gap-3 p-2 rounded-lg transition ${
+                                    isEnabled ? 'bg-blue-50' : 'bg-gray-50 opacity-60'
+                                  }`}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={isEnabled}
+                                    onChange={() => togglePrint(variant.id)}
+                                    className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                  />
+                                  <span className="flex-1 text-sm font-medium text-gray-700">{variant.size}</span>
+                                  <div className="flex items-center gap-1">
+                                    <span className="text-gray-400 text-sm">$</span>
+                                    <input
+                                      type="number"
+                                      step="0.01"
+                                      min="0"
+                                      value={currentPrice}
+                                      onChange={(e) => setPrice(variant.id, parseFloat(e.target.value) || 0)}
+                                      className="w-16 px-2 py-1 text-sm text-right border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-400"
+                                    />
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => removeVariant(product.id, variant.id)}
+                                    className="p-1 text-red-400 hover:text-red-600 transition"
+                                  >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                  </button>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+
+                        {/* Add variant form */}
+                        {isEditing && (
+                          <div className="flex gap-2">
+                            <input
+                              type="text"
+                              placeholder="Size (e.g. 20oz)"
+                              value={newVariantSize}
+                              onChange={(e) => setNewVariantSize(e.target.value)}
+                              className="flex-1 px-2 py-1.5 text-sm border border-gray-200 rounded"
+                            />
+                            <input
+                              type="number"
+                              placeholder="Price"
+                              step="0.01"
+                              value={newVariantPrice}
+                              onChange={(e) => setNewVariantPrice(e.target.value)}
+                              className="w-20 px-2 py-1.5 text-sm border border-gray-200 rounded"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => addVariantToProduct(product.id)}
+                              className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded hover:bg-blue-700"
+                            >
+                              Add
+                            </button>
+                          </div>
+                        )}
+
+                        <button
+                          type="button"
+                          onClick={() => setEditingProduct(isEditing ? null : product.id)}
+                          className="w-full py-1.5 text-xs text-blue-600 hover:bg-blue-100 rounded transition"
+                        >
+                          {isEditing ? 'Done adding sizes' : '+ Add size variant'}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Add Custom Product */}
+            {showAddProduct ? (
+              <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 space-y-3">
+                <input
+                  type="text"
+                  placeholder="Product name (e.g. Water Bottle, T-Shirt)"
+                  value={newProductName}
+                  onChange={(e) => setNewProductName(e.target.value)}
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg"
+                  autoFocus
+                />
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => { setShowAddProduct(false); setNewProductName(''); }}
+                    className="flex-1 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={addCustomProduct}
+                    disabled={!newProductName.trim()}
+                    className="flex-1 py-2 text-sm bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition disabled:opacity-50"
+                  >
+                    Add Product
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setShowAddProduct(true)}
+                className="w-full py-3 border-2 border-dashed border-gray-300 rounded-lg text-sm text-gray-500 hover:border-gray-400 hover:text-gray-700 transition flex items-center justify-center gap-2"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                Add Custom Product (Hat, Shirt, Mug, etc.)
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Positioning Section */}
+        {activeSection === 'positioning' && (
+          <div>
+            <ArtworkPositionerTabs
+              imageUrl={artwork.image_url}
+              positions={artworkPositions}
+              onPositionsChange={handlePositionsChange}
+            />
+          </div>
+        )}
+      </div>
+
+      {/* Footer Actions */}
+      <div className="flex gap-3 p-4 border-t border-gray-100 bg-white">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="flex-1 py-2.5 border border-gray-200 rounded-lg font-medium text-sm hover:bg-gray-50 transition"
         >
           Cancel
         </button>
         <button
-          type="submit"
+          type="button"
+          onClick={handleSubmit}
           disabled={isSaving}
-          className="flex-1 bg-gray-900 text-white py-3 rounded-lg font-medium hover:bg-gray-800 transition disabled:opacity-50"
+          className="flex-1 bg-gray-900 text-white py-2.5 rounded-lg font-medium text-sm hover:bg-gray-800 transition disabled:opacity-50"
         >
           {isSaving ? 'Saving...' : 'Save Changes'}
         </button>
       </div>
-    </form>
+    </div>
   );
 }
 
 function AddArtwork({ onSuccess }: { onSuccess: () => void }) {
   const [isUploading, setIsUploading] = useState(false);
+  const [orientation, setOrientation] = useState<'portrait' | 'landscape'>('portrait');
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -626,6 +1025,7 @@ function AddArtwork({ onSuccess }: { onSuccess: () => void }) {
           artist_name: formData.artist_name,
           price_base: parseFloat(formData.price_base),
           featured: formData.featured,
+          orientation: orientation,
           image_url: urlData.publicUrl,
           thumbnail_url: urlData.publicUrl,
           tags: [],
@@ -642,7 +1042,7 @@ function AddArtwork({ onSuccess }: { onSuccess: () => void }) {
         fetch('/api/mockups/pregenerate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ artworkId: insertedArtwork.id }),
+          body: JSON.stringify({ artworkId: insertedArtwork.id, orientation }),
         }).catch(console.error);
       }
 
@@ -746,6 +1146,37 @@ function AddArtwork({ onSuccess }: { onSuccess: () => void }) {
           rows={3}
           placeholder="Describe the artwork..."
         />
+      </div>
+
+      {/* Orientation */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-3">Print Orientation</label>
+        <div className="grid grid-cols-2 gap-3">
+          <button
+            type="button"
+            onClick={() => setOrientation('portrait')}
+            className={`p-4 rounded-lg border-2 transition flex flex-col items-center gap-2 ${
+              orientation === 'portrait'
+                ? 'border-gray-900 bg-gray-50'
+                : 'border-gray-200 hover:border-gray-300'
+            }`}
+          >
+            <div className={`w-8 h-12 rounded border-2 ${orientation === 'portrait' ? 'border-gray-900 bg-gray-200' : 'border-gray-300'}`} />
+            <span className="text-sm font-medium">Portrait</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setOrientation('landscape')}
+            className={`p-4 rounded-lg border-2 transition flex flex-col items-center gap-2 ${
+              orientation === 'landscape'
+                ? 'border-gray-900 bg-gray-50'
+                : 'border-gray-200 hover:border-gray-300'
+            }`}
+          >
+            <div className={`w-12 h-8 rounded border-2 ${orientation === 'landscape' ? 'border-gray-900 bg-gray-200' : 'border-gray-300'}`} />
+            <span className="text-sm font-medium">Landscape</span>
+          </button>
+        </div>
       </div>
 
       {/* Price */}

@@ -9,34 +9,66 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-// All product/size combinations to pre-generate
-const MOCKUP_CONFIGS = [
-  { productType: 'poster', productId: 1, size: '12×18"', variantId: 3876 },
-  { productType: 'poster', productId: 1, size: '18×24"', variantId: 1 },
-  { productType: 'poster', productId: 1, size: '24×36"', variantId: 2 },
-  { productType: 'canvas', productId: 3, size: '12×16"', variantId: 5 },
-  { productType: 'canvas', productId: 3, size: '18×24"', variantId: 7 },
-  { productType: 'canvas', productId: 3, size: '24×36"', variantId: 825 },
-  { productType: 'framed', productId: 2, size: '12×18"', variantId: 4398 },
-  { productType: 'framed', productId: 2, size: '18×24"', variantId: 3 },
-  { productType: 'framed', productId: 2, size: '24×36"', variantId: 4 },
-];
+// All product/size combinations organized by orientation
+const MOCKUP_CONFIGS_BY_ORIENTATION = {
+  portrait: [
+    { productType: 'poster', productId: 1, size: '12×18"', variantId: 3876 },
+    { productType: 'poster', productId: 1, size: '18×24"', variantId: 1 },
+    { productType: 'poster', productId: 1, size: '24×36"', variantId: 2 },
+    { productType: 'canvas', productId: 3, size: '12×16"', variantId: 5 },
+    { productType: 'canvas', productId: 3, size: '18×24"', variantId: 7 },
+    { productType: 'canvas', productId: 3, size: '24×36"', variantId: 825 },
+    { productType: 'framed', productId: 2, size: '12×18"', variantId: 4398 },
+    { productType: 'framed', productId: 2, size: '18×24"', variantId: 3 },
+    { productType: 'framed', productId: 2, size: '24×36"', variantId: 4 },
+  ],
+  landscape: [
+    { productType: 'poster', productId: 1, size: '18×12"', variantId: 3877 },
+    { productType: 'poster', productId: 1, size: '24×18"', variantId: 10 },
+    { productType: 'poster', productId: 1, size: '36×24"', variantId: 11 },
+    { productType: 'canvas', productId: 3, size: '16×12"', variantId: 6 },
+    { productType: 'canvas', productId: 3, size: '24×18"', variantId: 8 },
+    { productType: 'canvas', productId: 3, size: '36×24"', variantId: 826 },
+    { productType: 'framed', productId: 2, size: '18×12"', variantId: 4399 },
+    { productType: 'framed', productId: 2, size: '24×18"', variantId: 12 },
+    { productType: 'framed', productId: 2, size: '36×24"', variantId: 13 },
+  ],
+};
 
-const PRINT_AREAS: Record<string, Record<string, { width: number; height: number }>> = {
-  poster: {
-    '12×18"': { width: 1800, height: 2700 },
-    '18×24"': { width: 2700, height: 3600 },
-    '24×36"': { width: 3600, height: 5400 },
+const PRINT_AREAS_BY_ORIENTATION: Record<string, Record<string, Record<string, { width: number; height: number }>>> = {
+  portrait: {
+    poster: {
+      '12×18"': { width: 1800, height: 2700 },
+      '18×24"': { width: 2700, height: 3600 },
+      '24×36"': { width: 3600, height: 5400 },
+    },
+    canvas: {
+      '12×16"': { width: 1800, height: 2400 },
+      '18×24"': { width: 2700, height: 3600 },
+      '24×36"': { width: 3600, height: 5400 },
+    },
+    framed: {
+      '12×18"': { width: 1800, height: 2700 },
+      '18×24"': { width: 2700, height: 3600 },
+      '24×36"': { width: 3600, height: 5400 },
+    },
   },
-  canvas: {
-    '12×16"': { width: 1800, height: 2400 },
-    '18×24"': { width: 2700, height: 3600 },
-    '24×36"': { width: 3600, height: 5400 },
-  },
-  framed: {
-    '12×18"': { width: 1800, height: 2700 },
-    '18×24"': { width: 2700, height: 3600 },
-    '24×36"': { width: 3600, height: 5400 },
+  landscape: {
+    poster: {
+      '18×12"': { width: 2700, height: 1800 },
+      '24×18"': { width: 3600, height: 2700 },
+      '36×24"': { width: 5400, height: 3600 },
+    },
+    canvas: {
+      '16×12"': { width: 2400, height: 1800 },
+      '24×18"': { width: 3600, height: 2700 },
+      '36×24"': { width: 5400, height: 3600 },
+    },
+    framed: {
+      '18×12"': { width: 2700, height: 1800 },
+      '24×18"': { width: 3600, height: 2700 },
+      '36×24"': { width: 5400, height: 3600 },
+    },
   },
 };
 
@@ -63,7 +95,8 @@ async function printfulRequest<T>(endpoint: string, options: { method?: string; 
 async function generateMockup(
   artworkId: string,
   imageUrl: string,
-  config: typeof MOCKUP_CONFIGS[0],
+  config: typeof MOCKUP_CONFIGS_BY_ORIENTATION.portrait[0],
+  orientation: 'portrait' | 'landscape',
   positions?: Record<string, { scale: number; offsetX: number; offsetY: number }>
 ): Promise<string | null> {
   try {
@@ -74,14 +107,16 @@ async function generateMockup(
       .eq('artwork_id', artworkId)
       .eq('product_type', config.productType)
       .eq('size', config.size)
+      .eq('orientation', orientation)
       .single();
 
     if (cached?.mockup_url) {
       return cached.mockup_url;
     }
 
-    // Get print area
-    const printArea = PRINT_AREAS[config.productType]?.[config.size] || { width: 1800, height: 2700 };
+    // Get print area for this orientation
+    const printAreas = PRINT_AREAS_BY_ORIENTATION[orientation] || PRINT_AREAS_BY_ORIENTATION.portrait;
+    const printArea = printAreas[config.productType]?.[config.size] || { width: 1800, height: 2700 };
 
     // Apply positioning if set
     const position = positions?.[config.productType];
@@ -132,8 +167,9 @@ async function generateMockup(
             artwork_id: artworkId,
             product_type: config.productType,
             size: config.size,
+            orientation: orientation,
             mockup_url: mockupUrl,
-          }, { onConflict: 'artwork_id,product_type,size' });
+          }, { onConflict: 'artwork_id,product_type,size,orientation' });
 
         return mockupUrl;
       }
@@ -153,7 +189,7 @@ async function generateMockup(
 
 export async function POST(request: NextRequest) {
   try {
-    const { artworkId } = await request.json();
+    const { artworkId, orientation: requestOrientation } = await request.json();
 
     if (!artworkId) {
       return NextResponse.json({ error: 'Missing artworkId' }, { status: 400 });
@@ -170,13 +206,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Artwork not found' }, { status: 404 });
     }
 
+    // Use orientation from request or from artwork, default to portrait
+    const orientation: 'portrait' | 'landscape' = requestOrientation || artwork.orientation || 'portrait';
+    const configs = MOCKUP_CONFIGS_BY_ORIENTATION[orientation] || MOCKUP_CONFIGS_BY_ORIENTATION.portrait;
+
     const positions = artwork.artwork_positions || {};
     const results: Record<string, string | null> = {};
 
     // Generate mockups sequentially to avoid rate limits
-    for (const config of MOCKUP_CONFIGS) {
+    for (const config of configs) {
       const key = `${config.productType}-${config.size}`;
-      results[key] = await generateMockup(artworkId, artwork.image_url, config, positions);
+      results[key] = await generateMockup(artworkId, artwork.image_url, config, orientation, positions);
 
       // Small delay between requests to avoid rate limiting
       await new Promise(r => setTimeout(r, 500));
@@ -187,7 +227,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       generated: successCount,
-      total: MOCKUP_CONFIGS.length,
+      total: configs.length,
+      orientation,
       results,
     });
   } catch (error) {
