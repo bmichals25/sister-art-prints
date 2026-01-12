@@ -3,6 +3,7 @@ import { Inter, Playfair_Display } from "next/font/google";
 import "./globals.css";
 import { AdminProvider } from "@/components/AdminProvider";
 import { CartProvider } from "@/context/CartContext";
+import { DesignProvider } from "@/context/DesignContext";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -27,11 +28,13 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${inter.variable} ${playfair.variable} antialiased`}>
-        <CartProvider>
-          <AdminProvider>
-            {children}
-          </AdminProvider>
-        </CartProvider>
+        <DesignProvider>
+          <CartProvider>
+            <AdminProvider>
+              {children}
+            </AdminProvider>
+          </CartProvider>
+        </DesignProvider>
       </body>
     </html>
   );

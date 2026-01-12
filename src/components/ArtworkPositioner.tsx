@@ -11,31 +11,49 @@ interface Position {
 interface ArtworkPositionerProps {
   imageUrl: string;
   productType: 'poster' | 'canvas' | 'framed';
+  orientation: 'portrait' | 'landscape';
   initialPosition?: Partial<Position>;
   onPositionChange: (position: Position) => void;
 }
 
-const PRODUCT_CONFIG: Record<string, {
+const PRODUCT_CONFIG: Record<string, Record<string, {
   aspect: number;
   label: string;
   frameStyle?: string;
-}> = {
-  poster: {
-    aspect: 2/3,
-    label: 'Poster (2:3)',
+}>> = {
+  portrait: {
+    poster: {
+      aspect: 2/3,
+      label: 'Poster (2:3)',
+    },
+    canvas: {
+      aspect: 3/4,
+      label: 'Canvas (3:4)',
+    },
+    framed: {
+      aspect: 2/3,
+      label: 'Framed (2:3)',
+      frameStyle: 'border-[12px] border-gray-800 shadow-lg',
+    },
   },
-  canvas: {
-    aspect: 3/4,
-    label: 'Canvas (3:4)',
-  },
-  framed: {
-    aspect: 2/3,
-    label: 'Framed (2:3)',
-    frameStyle: 'border-[12px] border-gray-800 shadow-lg',
+  landscape: {
+    poster: {
+      aspect: 3/2,
+      label: 'Poster (3:2)',
+    },
+    canvas: {
+      aspect: 4/3,
+      label: 'Canvas (4:3)',
+    },
+    framed: {
+      aspect: 3/2,
+      label: 'Framed (3:2)',
+      frameStyle: 'border-[12px] border-gray-800 shadow-lg',
+    },
   },
 };
 
-export function ArtworkPositioner({ imageUrl, productType, initialPosition, onPositionChange }: ArtworkPositionerProps) {
+export function ArtworkPositioner({ imageUrl, productType, orientation, initialPosition, onPositionChange }: ArtworkPositionerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -49,7 +67,7 @@ export function ArtworkPositioner({ imageUrl, productType, initialPosition, onPo
     ...initialPosition,
   });
 
-  const config = PRODUCT_CONFIG[productType];
+  const config = PRODUCT_CONFIG[orientation][productType];
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -96,6 +114,7 @@ export function ArtworkPositioner({ imageUrl, productType, initialPosition, onPo
 
   const handleWheel = useCallback((e: React.WheelEvent) => {
     e.preventDefault();
+    e.stopPropagation();
     const delta = e.deltaY > 0 ? -5 : 5;
     setPosition(prev => ({
       ...prev,
@@ -134,8 +153,8 @@ export function ArtworkPositioner({ imageUrl, productType, initialPosition, onPo
         <div
           className="relative mx-auto overflow-hidden bg-white shadow-xl"
           style={{
-            width: '240px',
-            height: `${240 / config.aspect}px`,
+            width: '320px',
+            height: `${320 / config.aspect}px`,
           }}
         >
           {/* Frame decoration for framed type */}
@@ -221,10 +240,12 @@ export function ArtworkPositioner({ imageUrl, productType, initialPosition, onPo
 
 export function ArtworkPositionerTabs({
   imageUrl,
+  orientation,
   positions,
   onPositionsChange
 }: {
   imageUrl: string;
+  orientation: 'portrait' | 'landscape';
   positions: Record<string, Position>;
   onPositionsChange: (positions: Record<string, Position>) => void;
 }) {
@@ -265,6 +286,7 @@ export function ArtworkPositionerTabs({
       <ArtworkPositioner
         imageUrl={imageUrl}
         productType={activeTab}
+        orientation={orientation}
         initialPosition={positions[activeTab]}
         onPositionChange={(pos) => handlePositionChange(activeTab, pos)}
       />

@@ -114,34 +114,62 @@ async function printfulRequest<T>(endpoint: string, options: { method?: string; 
 
 export async function POST(request: NextRequest) {
   try {
-    const { imageUrl, productType, size, artworkId, orientation = 'portrait' } = await request.json();
+    const {
+      imageUrl,
+      productType,
+      size,
+      artworkId,
+      orientation = 'portrait',
+      // Custom product support - direct Printful IDs
+      printfulProductId,
+      printfulVariantId,
+      customProductName,
+    } = await request.json();
 
-    if (!imageUrl || !productType) {
-      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+    if (!imageUrl) {
+      return NextResponse.json({ error: 'Missing image URL' }, { status: 400 });
     }
 
-    const productId = PRINTFUL_PRODUCTS[productType];
-    if (!productId) {
-      return NextResponse.json({ error: 'Invalid product type' }, { status: 400 });
+    let productId: number;
+    let variantId: number;
+
+    // Handle custom products with direct Printful IDs
+    if (printfulProductId && printfulVariantId) {
+      productId = printfulProductId;
+      variantId = printfulVariantId;
+    } else {
+      // Handle standard products (poster, canvas, framed)
+      if (!productType) {
+        return NextResponse.json({ error: 'Missing product type' }, { status: 400 });
+      }
+
+      productId = PRINTFUL_PRODUCTS[productType];
+      if (!productId) {
+        return NextResponse.json({ error: 'Invalid product type' }, { status: 400 });
+      }
+
+      // Get variants for the specified orientation
+      const orientationVariants = VARIANT_IDS[orientation] || VARIANT_IDS.portrait;
+      const variants = orientationVariants[productType];
+      variantId = size && variants ? variants[size] : Object.values(variants || {})[0];
+
+      if (!variantId) {
+        return NextResponse.json({ error: 'Invalid size for product type' }, { status: 400 });
+      }
     }
 
-    // Get variants for the specified orientation
-    const orientationVariants = VARIANT_IDS[orientation] || VARIANT_IDS.portrait;
-    const variants = orientationVariants[productType];
-    const variantId = size && variants ? variants[size] : Object.values(variants || {})[0];
+    // Determine cache key - use customProductName for custom products
+    const cacheProductType = customProductName || productType;
+    const cacheSize = size || `variant_${variantId}`;
 
-    if (!variantId) {
-      return NextResponse.json({ error: 'Invalid size for product type' }, { status: 400 });
-    }
-
-    // Check cache first if artworkId is provided (include orientation in cache key)
+    // Check cache first if artworkId is provided
     if (artworkId) {
       const { data: cached } = await supabase
         .from('mockup_cache')
         .select('mockup_url')
         .eq('artwork_id', artworkId)
-        .eq('product_type', productType)
-        .eq('size', size)
+        .eq('product_type', cacheProductType)
+        .eq('size', cacheSize)
         .eq('orientation', orientation)
         .single();
 
@@ -153,9 +181,30 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Get print area for this product/size/orientation
-    const orientationAreas = PRINT_AREAS[orientation] || PRINT_AREAS.portrait;
-    const printArea = orientationAreas[productType]?.[size] || { width: 1800, height: 2700 };
+    // Get print area - for custom products, fetch from Printful API
+    let printArea = { width: 1800, height: 2700 };
+
+    if (printfulProductId) {
+      // Fetch print file info from Printful for custom products
+      try {
+        const printFiles = await printfulRequest<{
+          available_placements: Record<string, { width: number; height: number }>;
+        }>(`/mockup-generator/printfiles/${productId}`);
+
+        // Use the first available placement dimensions
+        const placements = Object.values(printFiles.available_placements || {});
+        if (placements.length > 0 && placements[0].width && placements[0].height) {
+          printArea = { width: placements[0].width, height: placements[0].height };
+        }
+      } catch {
+        // Fall back to default if we can't get print file info
+        console.warn('Could not fetch print file info, using defaults');
+      }
+    } else {
+      // Standard products use predefined print areas
+      const orientationAreas = PRINT_AREAS[orientation] || PRINT_AREAS.portrait;
+      printArea = orientationAreas[productType]?.[size] || printArea;
+    }
 
     // Create mockup task with Printful
     const task = await printfulRequest<{ task_key: string; status: string }>(
@@ -213,8 +262,8 @@ export async function POST(request: NextRequest) {
         .from('mockup_cache')
         .upsert({
           artwork_id: artworkId,
-          product_type: productType,
-          size: size,
+          product_type: cacheProductType,
+          size: cacheSize,
           orientation: orientation,
           mockup_url: mockupUrl,
         }, {

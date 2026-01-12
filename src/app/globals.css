@@ -6,6 +6,15 @@
   --accent: #e8a87c;
   --accent-light: #f5d4be;
   --accent-warm: #d4846a;
+
+  /* Design system colors - updated by DesignContext */
+  --color-primary: #d4846a;
+  --color-secondary: #e8a87c;
+  --color-accent: #f5d4be;
+  --color-background: #fff8f3;
+  --color-text: #1f2937;
+  --font-heading: serif;
+  --font-body: sans-serif;
 }
 
 @theme inline {

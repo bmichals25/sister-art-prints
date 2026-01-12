@@ -4,12 +4,15 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import type { Artwork } from '@/lib/supabase';
 import { ArtworkPositionerTabs } from './ArtworkPositioner';
+import { PrintfulProductBrowser } from './PrintfulProductBrowser';
+import { useAdmin } from './AdminProvider';
 
 interface AdminPanelProps {
   onClose: () => void;
 }
 
 export function AdminPanel({ onClose }: AdminPanelProps) {
+  const { openDesignDrawer } = useAdmin();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [email, setEmail] = useState('');
@@ -18,6 +21,14 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
   const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
   const [artworks, setArtworks] = useState<Artwork[]>([]);
   const [activeTab, setActiveTab] = useState<'artworks' | 'add' | 'design' | 'settings'>('artworks');
+
+  const handleTabClick = (tab: typeof activeTab) => {
+    if (tab === 'design') {
+      openDesignDrawer();
+    } else {
+      setActiveTab(tab);
+    }
+  };
 
   useEffect(() => {
     checkAuth();
@@ -107,7 +118,7 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
       />
 
       {/* Panel */}
-      <div className="absolute right-0 top-0 bottom-0 w-full max-w-xl bg-white shadow-2xl admin-panel overflow-hidden flex flex-col">
+      <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-2xl max-h-[90vh] bg-white shadow-2xl rounded-2xl admin-panel overflow-hidden flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
           <h2 className="text-lg font-medium">Admin Panel</h2>
@@ -203,16 +214,23 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
               {(['artworks', 'add', 'design', 'settings'] as const).map((tab) => (
                 <button
                   key={tab}
-                  onClick={() => setActiveTab(tab)}
+                  onClick={() => handleTabClick(tab)}
                   className={`flex-1 py-3 text-sm font-medium transition ${
-                    activeTab === tab
+                    activeTab === tab && tab !== 'design'
                       ? 'text-gray-900 border-b-2 border-gray-900'
                       : 'text-gray-500 hover:text-gray-700'
                   }`}
                 >
                   {tab === 'artworks' && 'Artworks'}
                   {tab === 'add' && 'Add'}
-                  {tab === 'design' && 'Design'}
+                  {tab === 'design' && (
+                    <span className="flex items-center justify-center gap-1">
+                      Design
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                      </svg>
+                    </span>
+                  )}
                   {tab === 'settings' && 'Settings'}
                 </button>
               ))}
@@ -225,9 +243,6 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
               )}
               {activeTab === 'add' && (
                 <AddArtwork onSuccess={() => { loadArtworks(); setActiveTab('artworks'); }} />
-              )}
-              {activeTab === 'design' && (
-                <DesignSettings />
               )}
               {activeTab === 'settings' && (
                 <Settings onLogout={handleLogout} />
@@ -373,9 +388,12 @@ const getPrintOptions = (orientation: 'portrait' | 'landscape') => PRINT_OPTIONS
 interface CustomProduct {
   id: string;
   name: string;
+  printfulProductId?: number;
   variants: Array<{
     id: string;
+    printfulVariantId?: number;
     size: string;
+    color?: string;
     price: number;
   }>;
 }
@@ -415,10 +433,6 @@ function EditArtwork({ artwork, onSave, onCancel }: { artwork: Artwork; onSave: 
   );
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
   const [showAddProduct, setShowAddProduct] = useState(false);
-  const [newProductName, setNewProductName] = useState('');
-  const [newVariantSize, setNewVariantSize] = useState('');
-  const [newVariantPrice, setNewVariantPrice] = useState('');
-  const [editingProduct, setEditingProduct] = useState<string | null>(null);
 
   const handlePositionsChange = useCallback((positions: Record<string, ArtworkPosition>) => {
     setArtworkPositions(positions);
@@ -428,46 +442,37 @@ function EditArtwork({ artwork, onSave, onCancel }: { artwork: Artwork; onSave: 
     setCollapsedSections(prev => ({ ...prev, [sectionId]: !prev[sectionId] }));
   };
 
-  const addCustomProduct = () => {
-    if (!newProductName.trim()) return;
-    const productId = newProductName.toLowerCase().replace(/\s+/g, '-');
+  const addCustomProduct = (product: {
+    name: string;
+    printfulProductId: number;
+    variants: Array<{ id: number; name: string; size: string; color: string; price: number }>;
+  }) => {
+    const productId = product.name.toLowerCase().replace(/\s+/g, '-');
     if (customProducts.some(p => p.id === productId) || DEFAULT_PRODUCT_TYPES.includes(productId)) {
       alert('A product with this name already exists');
       return;
     }
-    setCustomProducts([...customProducts, { id: productId, name: newProductName.trim(), variants: [] }]);
-    setNewProductName('');
+    const newProduct: CustomProduct = {
+      id: productId,
+      name: product.name,
+      printfulProductId: product.printfulProductId,
+      variants: product.variants.map(v => ({
+        id: `${productId}-${v.size.toLowerCase().replace(/\s+/g, '-')}`,
+        printfulVariantId: v.id,
+        size: v.size,
+        color: v.color,
+        price: v.price,
+      })),
+    };
+    setCustomProducts([...customProducts, newProduct]);
     setShowAddProduct(false);
-    setEditingProduct(productId);
+    // Enable all variants by default
+    setEnabledPrints(prev => [...prev, ...newProduct.variants.map(v => v.id)]);
   };
 
   const removeCustomProduct = (productId: string) => {
     setCustomProducts(customProducts.filter(p => p.id !== productId));
     setEnabledPrints(enabledPrints.filter(id => !id.startsWith(`${productId}-`)));
-  };
-
-  const addVariantToProduct = (productId: string) => {
-    if (!newVariantSize.trim() || !newVariantPrice) return;
-    const variantId = `${productId}-${newVariantSize.toLowerCase().replace(/\s+/g, '-')}`;
-    setCustomProducts(customProducts.map(p => {
-      if (p.id !== productId) return p;
-      if (p.variants.some(v => v.id === variantId)) return p;
-      return {
-        ...p,
-        variants: [...p.variants, { id: variantId, size: newVariantSize.trim(), price: parseFloat(newVariantPrice) }]
-      };
-    }));
-    setEnabledPrints([...enabledPrints, variantId]);
-    setNewVariantSize('');
-    setNewVariantPrice('');
-  };
-
-  const removeVariant = (productId: string, variantId: string) => {
-    setCustomProducts(customProducts.map(p => {
-      if (p.id !== productId) return p;
-      return { ...p, variants: p.variants.filter(v => v.id !== variantId) };
-    }));
-    setEnabledPrints(enabledPrints.filter(id => id !== variantId));
   };
 
   // Get price for a print option (custom price overrides default)
@@ -761,8 +766,6 @@ function EditArtwork({ artwork, onSave, onCancel }: { artwork: Artwork; onSave: 
               {customProducts.map((product) => {
                 const enabledCount = product.variants.filter(v => enabledPrints.includes(v.id)).length;
                 const isCollapsed = collapsedSections[product.id];
-                const isEditing = editingProduct === product.id;
-
                 return (
                   <div key={product.id} className="border border-blue-200 rounded-lg overflow-hidden bg-blue-50/30">
                     <button
@@ -780,7 +783,7 @@ function EditArtwork({ artwork, onSave, onCancel }: { artwork: Artwork; onSave: 
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                         </svg>
                         <span className="text-sm font-medium text-blue-700">{product.name}</span>
-                        <span className="text-xs text-blue-500 bg-blue-100 px-1.5 py-0.5 rounded">Custom</span>
+                        <span className="text-xs text-blue-500 bg-blue-100 px-1.5 py-0.5 rounded">Printful</span>
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="text-xs text-blue-500 bg-white px-2 py-0.5 rounded-full">
@@ -798,88 +801,43 @@ function EditArtwork({ artwork, onSave, onCancel }: { artwork: Artwork; onSave: 
                       </div>
                     </button>
                     {!isCollapsed && (
-                      <div className="p-3 space-y-3">
-                        {/* Existing variants */}
-                        {product.variants.length > 0 && (
-                          <div className="space-y-2">
-                            {product.variants.map((variant) => {
-                              const isEnabled = enabledPrints.includes(variant.id);
-                              const currentPrice = getPrice(variant.id, variant.price);
-                              return (
-                                <div
-                                  key={variant.id}
-                                  className={`flex items-center gap-3 p-2 rounded-lg transition ${
-                                    isEnabled ? 'bg-blue-50' : 'bg-gray-50 opacity-60'
-                                  }`}
-                                >
-                                  <input
-                                    type="checkbox"
-                                    checked={isEnabled}
-                                    onChange={() => togglePrint(variant.id)}
-                                    className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                                  />
-                                  <span className="flex-1 text-sm font-medium text-gray-700">{variant.size}</span>
-                                  <div className="flex items-center gap-1">
-                                    <span className="text-gray-400 text-sm">$</span>
-                                    <input
-                                      type="number"
-                                      step="0.01"
-                                      min="0"
-                                      value={currentPrice}
-                                      onChange={(e) => setPrice(variant.id, parseFloat(e.target.value) || 0)}
-                                      className="w-16 px-2 py-1 text-sm text-right border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-400"
-                                    />
-                                  </div>
-                                  <button
-                                    type="button"
-                                    onClick={() => removeVariant(product.id, variant.id)}
-                                    className="p-1 text-red-400 hover:text-red-600 transition"
-                                  >
-                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                    </svg>
-                                  </button>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        )}
-
-                        {/* Add variant form */}
-                        {isEditing && (
-                          <div className="flex gap-2">
-                            <input
-                              type="text"
-                              placeholder="Size (e.g. 20oz)"
-                              value={newVariantSize}
-                              onChange={(e) => setNewVariantSize(e.target.value)}
-                              className="flex-1 px-2 py-1.5 text-sm border border-gray-200 rounded"
-                            />
-                            <input
-                              type="number"
-                              placeholder="Price"
-                              step="0.01"
-                              value={newVariantPrice}
-                              onChange={(e) => setNewVariantPrice(e.target.value)}
-                              className="w-20 px-2 py-1.5 text-sm border border-gray-200 rounded"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => addVariantToProduct(product.id)}
-                              className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded hover:bg-blue-700"
+                      <div className="p-3 space-y-2">
+                        {product.variants.map((variant) => {
+                          const isEnabled = enabledPrints.includes(variant.id);
+                          const currentPrice = getPrice(variant.id, variant.price);
+                          return (
+                            <div
+                              key={variant.id}
+                              className={`flex items-center gap-3 p-2 rounded-lg transition ${
+                                isEnabled ? 'bg-blue-50' : 'bg-gray-50 opacity-60'
+                              }`}
                             >
-                              Add
-                            </button>
-                          </div>
-                        )}
-
-                        <button
-                          type="button"
-                          onClick={() => setEditingProduct(isEditing ? null : product.id)}
-                          className="w-full py-1.5 text-xs text-blue-600 hover:bg-blue-100 rounded transition"
-                        >
-                          {isEditing ? 'Done adding sizes' : '+ Add size variant'}
-                        </button>
+                              <input
+                                type="checkbox"
+                                checked={isEnabled}
+                                onChange={() => togglePrint(variant.id)}
+                                className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                              />
+                              <div className="flex-1 min-w-0">
+                                <span className="text-sm font-medium text-gray-700">{variant.size}</span>
+                                {variant.color && (
+                                  <span className="text-xs text-gray-500 ml-2">({variant.color})</span>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <span className="text-gray-400 text-sm">$</span>
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  min="0"
+                                  value={currentPrice}
+                                  onChange={(e) => setPrice(variant.id, parseFloat(e.target.value) || 0)}
+                                  className="w-16 px-2 py-1 text-sm text-right border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-400"
+                                />
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
                     )}
                   </div>
@@ -889,33 +847,10 @@ function EditArtwork({ artwork, onSave, onCancel }: { artwork: Artwork; onSave: 
 
             {/* Add Custom Product */}
             {showAddProduct ? (
-              <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 space-y-3">
-                <input
-                  type="text"
-                  placeholder="Product name (e.g. Water Bottle, T-Shirt)"
-                  value={newProductName}
-                  onChange={(e) => setNewProductName(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg"
-                  autoFocus
-                />
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => { setShowAddProduct(false); setNewProductName(''); }}
-                    className="flex-1 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    onClick={addCustomProduct}
-                    disabled={!newProductName.trim()}
-                    className="flex-1 py-2 text-sm bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition disabled:opacity-50"
-                  >
-                    Add Product
-                  </button>
-                </div>
-              </div>
+              <PrintfulProductBrowser
+                onSelect={addCustomProduct}
+                onCancel={() => setShowAddProduct(false)}
+              />
             ) : (
               <button
                 type="button"
@@ -925,7 +860,7 @@ function EditArtwork({ artwork, onSave, onCancel }: { artwork: Artwork; onSave: 
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                 </svg>
-                Add Custom Product (Hat, Shirt, Mug, etc.)
+                Add Product from Printful Catalog
               </button>
             )}
           </div>
@@ -936,6 +871,7 @@ function EditArtwork({ artwork, onSave, onCancel }: { artwork: Artwork; onSave: 
           <div>
             <ArtworkPositionerTabs
               imageUrl={artwork.image_url}
+              orientation={orientation}
               positions={artworkPositions}
               onPositionsChange={handlePositionsChange}
             />

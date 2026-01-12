@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { createClient } from '@supabase/supabase-js';
+import { EditableHero } from '@/components/EditableHero';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -63,85 +64,8 @@ export default async function Home() {
         </div>
       </header>
 
-      {/* Hero */}
-      <section className="relative min-h-[90vh] flex items-center justify-center pt-16 overflow-hidden">
-        {/* Abstract Background Shapes */}
-        <div className="absolute inset-0 overflow-hidden">
-          <div className="abstract-shape abstract-shape-1" />
-          <div className="abstract-shape abstract-shape-2" />
-          <div className="abstract-shape abstract-shape-3" />
-          <div className="glow-orb glow-orb-1" />
-          <div className="glow-orb glow-orb-2" />
-        </div>
-
-        {/* Animated Lines */}
-        <svg className="absolute inset-0 w-full h-full pointer-events-none opacity-10" viewBox="0 0 1440 900" fill="none">
-          <path className="draw-line" d="M0 450 Q 360 200 720 450 T 1440 450" stroke="url(#gradient1)" strokeWidth="1" fill="none" style={{ animationDelay: '0.5s' }} />
-          <path className="draw-line" d="M0 500 Q 360 700 720 500 T 1440 500" stroke="url(#gradient1)" strokeWidth="1" fill="none" style={{ animationDelay: '1s' }} />
-          <path className="draw-line" d="M-100 300 Q 400 100 700 350 T 1500 200" stroke="url(#gradient2)" strokeWidth="0.5" fill="none" style={{ animationDelay: '1.5s' }} />
-          <defs>
-            <linearGradient id="gradient1" x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%" stopColor="#e8a87c" stopOpacity="0" />
-              <stop offset="50%" stopColor="#d4846a" stopOpacity="1" />
-              <stop offset="100%" stopColor="#e8a87c" stopOpacity="0" />
-            </linearGradient>
-            <linearGradient id="gradient2" x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%" stopColor="#f5d4be" stopOpacity="0" />
-              <stop offset="50%" stopColor="#e8a87c" stopOpacity="0.5" />
-              <stop offset="100%" stopColor="#f5d4be" stopOpacity="0" />
-            </linearGradient>
-          </defs>
-        </svg>
-
-        <div className="absolute inset-0 grain" />
-
-        <div className="relative z-10 text-center px-6 max-w-4xl mx-auto">
-          <h1 className="text-5xl md:text-7xl lg:text-8xl font-serif font-light text-gray-900 mb-6 fade-in">
-            <span className="gradient-text">Original Art,</span>
-            <br />
-            <span className="italic">Beautiful Prints</span>
-          </h1>
-          <p className="text-lg md:text-xl text-gray-600 max-w-2xl mx-auto mb-10 fade-in fade-in-delay-1">
-            Discover our curated collection of original artwork,
-            available as museum-quality prints delivered to your door.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center fade-in fade-in-delay-2">
-            <Link
-              href="/gallery"
-              className="group inline-flex items-center justify-center px-8 py-4 bg-gray-900 text-white text-sm tracking-wide hover:bg-gray-800 transition btn-primary interactive-glow rounded-full"
-            >
-              Explore Collection
-              <svg className="w-4 h-4 ml-2 transition-transform group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
-              </svg>
-            </Link>
-            <Link
-              href="#featured"
-              className="group inline-flex items-center justify-center px-8 py-4 border border-gray-300 text-gray-700 text-sm tracking-wide hover:border-[#e8a87c] hover:text-[#d4846a] transition rounded-full"
-            >
-              View Featured Works
-              <svg className="w-4 h-4 ml-2 opacity-0 -translate-x-2 transition-all group-hover:opacity-100 group-hover:translate-x-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7" />
-              </svg>
-            </Link>
-          </div>
-        </div>
-
-        {/* Decorative elements */}
-        <div className="absolute bottom-12 left-1/2 -translate-x-1/2 fade-in fade-in-delay-3">
-          <div className="flex flex-col items-center gap-2 text-gray-400">
-            <span className="text-xs tracking-widest uppercase">Scroll</span>
-            <svg className="w-4 h-4 animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
-            </svg>
-          </div>
-        </div>
-
-        {/* Floating accent circles */}
-        <div className="absolute top-1/4 left-10 w-2 h-2 rounded-full bg-[#e8a87c]/40 animate-pulse" style={{ animationDuration: '3s' }} />
-        <div className="absolute top-1/3 right-16 w-3 h-3 rounded-full bg-[#d4846a]/30 animate-pulse" style={{ animationDuration: '4s', animationDelay: '1s' }} />
-        <div className="absolute bottom-1/3 left-20 w-1.5 h-1.5 rounded-full bg-[#f5d4be]/50 animate-pulse" style={{ animationDuration: '2.5s', animationDelay: '0.5s' }} />
-      </section>
+      {/* Hero - Client Component for Editable Content */}
+      <EditableHero />
 
       {/* Featured Works */}
       <section id="featured" className="py-24 px-6 lg:px-8 relative overflow-hidden">
