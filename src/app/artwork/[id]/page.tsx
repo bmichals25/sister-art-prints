@@ -39,6 +39,33 @@ const printOptionsByOrientation = {
 const productTypes = ['poster', 'canvas', 'framed'] as const;
 type ProductType = typeof productTypes[number];
 
+// Aspect ratios for each product type - must match ArtworkPositioner
+const PRODUCT_ASPECT_RATIOS: Record<string, Record<ProductType, number>> = {
+  portrait: {
+    poster: 2/3,  // 2:3
+    canvas: 3/4,  // 3:4
+    framed: 2/3,  // 2:3
+  },
+  landscape: {
+    poster: 3/2,  // 3:2
+    canvas: 4/3,  // 4:3
+    framed: 3/2,  // 3:2
+  },
+};
+
+interface CustomProduct {
+  id: string;
+  name: string;
+  printfulProductId?: number;
+  variants: Array<{
+    id: string;
+    printfulVariantId?: number;
+    size: string;
+    color?: string;
+    price: number;
+  }>;
+}
+
 interface Artwork {
   id: string;
   title: string;
@@ -49,14 +76,27 @@ interface Artwork {
   orientation?: 'portrait' | 'landscape';
   custom_prices?: Record<string, number>;
   enabled_prints?: string[];
+  custom_products?: CustomProduct[];
+}
+
+// Unified option type for both default and custom products
+interface PrintOption {
+  id: string;
+  type: string;
+  label: string;
+  size: string;
+  price: number;
+  color?: string;
+  isCustom?: boolean;
+  printfulVariantId?: number;
 }
 
 export default function ArtworkPage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = use(params);
   const [artwork, setArtwork] = useState<Artwork | null>(null);
   const [loading, setLoading] = useState(true);
-  const [selectedType, setSelectedType] = useState<ProductType>('poster');
-  const [selectedOption, setSelectedOption] = useState<typeof printOptionsByOrientation.portrait[0] | null>(null);
+  const [selectedType, setSelectedType] = useState<string>('poster');
+  const [selectedOption, setSelectedOption] = useState<PrintOption | null>(null);
   const [isAddingToCart, setIsAddingToCart] = useState(false);
   const [mockupUrl, setMockupUrl] = useState<string | null>(null);
   const [mockupLoading, setMockupLoading] = useState(false);
@@ -65,6 +105,29 @@ export default function ArtworkPage({ params }: { params: Promise<{ id: string }
   // Get orientation from artwork, default to portrait
   const orientation = artwork?.orientation || 'portrait';
   const printOptions = printOptionsByOrientation[orientation];
+
+  // Check if selected type is a custom product
+  const isCustomProduct = !productTypes.includes(selectedType as ProductType);
+  const customProduct = artwork?.custom_products?.find(p => p.id === selectedType);
+
+  // All product types including custom ones
+  const allProductTypes = [
+    ...productTypes,
+    ...(artwork?.custom_products?.map(p => p.id) || []),
+  ];
+
+  // Get labels for all product types
+  const getTypeLabel = (type: string) => {
+    if (productTypes.includes(type as ProductType)) {
+      const labels: Record<ProductType, string> = {
+        poster: 'Poster',
+        canvas: 'Canvas',
+        framed: 'Framed',
+      };
+      return labels[type as ProductType];
+    }
+    return artwork?.custom_products?.find(p => p.id === type)?.name || type;
+  };
 
   useEffect(() => {
     async function fetchArtwork() {
@@ -87,7 +150,7 @@ export default function ArtworkPage({ params }: { params: Promise<{ id: string }
   }, [resolvedParams.id]);
 
   // Fetch mockup when type/size changes
-  const fetchMockup = useCallback(async (type: ProductType, size: string, imageUrl: string, artworkId: string, artworkOrientation: string) => {
+  const fetchMockup = useCallback(async (type: string, size: string, imageUrl: string, artworkId: string, artworkOrientation: string) => {
     const cacheKey = `${type}-${size}-${artworkOrientation}`;
 
     // Check local cache first
@@ -131,7 +194,22 @@ export default function ArtworkPage({ params }: { params: Promise<{ id: string }
     }
   }, [artwork?.id, artwork?.image_url, selectedType, selectedOption, orientation, fetchMockup]);
 
-  const filteredOptions = printOptions.filter((opt) => opt.type === selectedType);
+  // Get filtered options for current selection (default or custom product)
+  const filteredOptions: PrintOption[] = isCustomProduct && customProduct
+    ? customProduct.variants.map(v => ({
+        id: v.id,
+        type: customProduct.id,
+        label: customProduct.name,
+        size: v.size,
+        price: v.price,
+        color: v.color,
+        isCustom: true,
+        printfulVariantId: v.printfulVariantId,
+      }))
+    : printOptions.filter((opt) => opt.type === selectedType).map(opt => ({
+        ...opt,
+        isCustom: false,
+      }));
 
   // Get price - use custom price if set, otherwise default
   const getPrice = (optionId: string, defaultPrice: number) => {
@@ -166,10 +244,12 @@ export default function ArtworkPage({ params }: { params: Promise<{ id: string }
     );
   }
 
-  const typeLabels: Record<ProductType, string> = {
-    poster: 'Poster',
-    canvas: 'Canvas',
-    framed: 'Framed',
+  // Get aspect ratio for current product type (1:1 for custom products)
+  const getAspectRatio = () => {
+    if (isCustomProduct) {
+      return 1; // 1:1 for custom products
+    }
+    return PRODUCT_ASPECT_RATIOS[orientation][selectedType as ProductType];
   };
 
   return (
@@ -212,9 +292,12 @@ export default function ArtworkPage({ params }: { params: Promise<{ id: string }
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
           {/* Mockup Preview */}
           <div className="sticky top-24">
-            <div className={`relative bg-gradient-to-b from-[#f5f0eb] to-[#e8e3de] rounded-2xl overflow-hidden shadow-lg ${
-              orientation === 'landscape' ? 'aspect-[4/3]' : 'aspect-[3/4]'
-            }`}>
+            <div
+              className="relative bg-gradient-to-b from-[#f5f0eb] to-[#e8e3de] rounded-2xl overflow-hidden shadow-lg"
+              style={{
+                aspectRatio: getAspectRatio(),
+              }}
+            >
               {/* Show Printful mockup if available, otherwise show artwork */}
               {mockupLoading ? (
                 <div className="absolute inset-0 flex items-center justify-center bg-[#f5f0eb]">
@@ -226,7 +309,7 @@ export default function ArtworkPage({ params }: { params: Promise<{ id: string }
               ) : mockupUrl ? (
                 <img
                   src={mockupUrl}
-                  alt={`${artwork.title} - ${typeLabels[selectedType]} ${selectedOption?.size || ''}`}
+                  alt={`${artwork.title} - ${getTypeLabel(selectedType)} ${selectedOption?.size || ''}`}
                   className="w-full h-full object-contain"
                 />
               ) : (
@@ -242,33 +325,60 @@ export default function ArtworkPage({ params }: { params: Promise<{ id: string }
               {/* Size indicator */}
               {selectedOption && (
                 <div className="absolute bottom-4 left-4 bg-white/90 backdrop-blur-sm px-3 py-1.5 rounded-full text-xs font-medium text-gray-700 shadow-sm">
-                  {selectedOption.size} {typeLabels[selectedType]}
+                  {selectedOption.size} {getTypeLabel(selectedType)}
+                  {selectedOption.color && <span className="text-gray-500 ml-1">({selectedOption.color})</span>}
                 </div>
               )}
             </div>
 
             {/* Thumbnail strip */}
-            <div className="flex gap-3 mt-4 justify-center">
-              {productTypes.map((type) => (
-                <button
-                  key={type}
-                  onClick={() => {
-                    setSelectedType(type);
-                    setSelectedOption(printOptions.find((opt) => opt.type === type)!);
-                  }}
-                  className={`w-16 h-16 rounded-lg overflow-hidden border-2 transition-all ${
-                    selectedType === type
-                      ? 'border-[#d4846a] shadow-md'
-                      : 'border-transparent opacity-60 hover:opacity-100'
-                  }`}
-                >
-                  <img
-                    src={artwork.image_url}
-                    alt={typeLabels[type]}
-                    className="w-full h-full object-cover"
-                  />
-                </button>
-              ))}
+            <div className="flex flex-wrap gap-3 mt-4 justify-center">
+              {allProductTypes.map((type) => {
+                const isCustom = !productTypes.includes(type as ProductType);
+                return (
+                  <button
+                    key={type}
+                    onClick={() => {
+                      setSelectedType(type);
+                      if (isCustom) {
+                        const cp = artwork.custom_products?.find(p => p.id === type);
+                        if (cp && cp.variants.length > 0) {
+                          const v = cp.variants[0];
+                          setSelectedOption({
+                            id: v.id,
+                            type: cp.id,
+                            label: cp.name,
+                            size: v.size,
+                            price: v.price,
+                            color: v.color,
+                            isCustom: true,
+                            printfulVariantId: v.printfulVariantId,
+                          });
+                        }
+                      } else {
+                        setSelectedOption(printOptions.find((opt) => opt.type === type)!);
+                      }
+                    }}
+                    className={`relative w-16 h-16 rounded-lg overflow-hidden border-2 transition-all ${
+                      selectedType === type
+                        ? isCustom ? 'border-blue-500 shadow-md' : 'border-[#d4846a] shadow-md'
+                        : 'border-transparent opacity-60 hover:opacity-100'
+                    }`}
+                    title={getTypeLabel(type)}
+                  >
+                    <img
+                      src={artwork.image_url}
+                      alt={getTypeLabel(type)}
+                      className="w-full h-full object-cover"
+                    />
+                    {isCustom && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-blue-500/20">
+                        <span className="text-[8px] font-bold text-blue-700 bg-white/80 px-1 rounded">CUSTOM</span>
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
@@ -282,28 +392,55 @@ export default function ArtworkPage({ params }: { params: Promise<{ id: string }
             <div className="mb-6">
               <label className="block text-sm font-medium text-gray-900 mb-3">Print Type</label>
               <div className="flex flex-wrap gap-2">
-                {productTypes.map((type) => (
-                  <button
-                    key={type}
-                    onClick={() => {
-                      setSelectedType(type);
-                      setSelectedOption(printOptions.find((opt) => opt.type === type)!);
-                    }}
-                    className={`px-5 py-2.5 text-sm rounded-full border transition-all ${
-                      selectedType === type
-                        ? 'border-[#d4846a] bg-[#d4846a] text-white shadow-md'
-                        : 'border-gray-300 hover:border-[#d4846a] hover:text-[#d4846a]'
-                    }`}
-                  >
-                    {typeLabels[type]}
-                  </button>
-                ))}
+                {allProductTypes.map((type) => {
+                  const isCustom = !productTypes.includes(type as ProductType);
+                  return (
+                    <button
+                      key={type}
+                      onClick={() => {
+                        setSelectedType(type);
+                        if (isCustom) {
+                          const cp = artwork.custom_products?.find(p => p.id === type);
+                          if (cp && cp.variants.length > 0) {
+                            const v = cp.variants[0];
+                            setSelectedOption({
+                              id: v.id,
+                              type: cp.id,
+                              label: cp.name,
+                              size: v.size,
+                              price: v.price,
+                              color: v.color,
+                              isCustom: true,
+                              printfulVariantId: v.printfulVariantId,
+                            });
+                          }
+                        } else {
+                          setSelectedOption(printOptions.find((opt) => opt.type === type)!);
+                        }
+                      }}
+                      className={`px-5 py-2.5 text-sm rounded-full border transition-all ${
+                        selectedType === type
+                          ? isCustom
+                            ? 'border-blue-500 bg-blue-500 text-white shadow-md'
+                            : 'border-[#d4846a] bg-[#d4846a] text-white shadow-md'
+                          : isCustom
+                            ? 'border-blue-300 text-blue-600 hover:border-blue-500 hover:text-blue-700'
+                            : 'border-gray-300 hover:border-[#d4846a] hover:text-[#d4846a]'
+                      }`}
+                    >
+                      {getTypeLabel(type)}
+                      {isCustom && <span className="ml-1.5 text-xs opacity-75">(Custom)</span>}
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
             {/* Size Selection */}
             <div className="mb-8">
-              <label className="block text-sm font-medium text-gray-900 mb-3">Size</label>
+              <label className="block text-sm font-medium text-gray-900 mb-3">
+                {isCustomProduct ? 'Variant' : 'Size'}
+              </label>
               <div className="grid grid-cols-3 gap-3">
                 {filteredOptions.map((option) => {
                   const price = getPrice(option.id, option.price);
@@ -313,12 +450,19 @@ export default function ArtworkPage({ params }: { params: Promise<{ id: string }
                       onClick={() => setSelectedOption(option)}
                       className={`p-4 border rounded-xl text-center transition-all ${
                         selectedOption?.id === option.id
-                          ? 'border-[#d4846a] bg-[#fff8f3] shadow-md'
+                          ? option.isCustom
+                            ? 'border-blue-500 bg-blue-50 shadow-md'
+                            : 'border-[#d4846a] bg-[#fff8f3] shadow-md'
                           : 'border-gray-200 hover:border-[#e8a87c]'
                       }`}
                     >
                       <div className="text-sm font-medium">{option.size}</div>
-                      <div className="text-sm text-[#d4846a] font-medium">${price.toFixed(2)}</div>
+                      {option.color && (
+                        <div className="text-xs text-gray-500">{option.color}</div>
+                      )}
+                      <div className={`text-sm font-medium ${option.isCustom ? 'text-blue-600' : 'text-[#d4846a]'}`}>
+                        ${price.toFixed(2)}
+                      </div>
                     </button>
                   );
                 })}

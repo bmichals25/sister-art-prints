@@ -238,18 +238,35 @@ export function ArtworkPositioner({ imageUrl, productType, orientation, initialP
   );
 }
 
+interface CustomProduct {
+  id: string;
+  name: string;
+  printfulProductId?: number;
+  variants: Array<{
+    id: string;
+    printfulVariantId?: number;
+    size: string;
+    color?: string;
+    price: number;
+  }>;
+}
+
 export function ArtworkPositionerTabs({
   imageUrl,
   orientation,
   positions,
-  onPositionsChange
+  onPositionsChange,
+  customProducts = [],
 }: {
   imageUrl: string;
   orientation: 'portrait' | 'landscape';
   positions: Record<string, Position>;
   onPositionsChange: (positions: Record<string, Position>) => void;
+  customProducts?: CustomProduct[];
 }) {
-  const [activeTab, setActiveTab] = useState<'poster' | 'canvas' | 'framed'>('poster');
+  const defaultTypes = ['poster', 'canvas', 'framed'] as const;
+  const allProductTypes = [...defaultTypes, ...customProducts.map(p => p.id)];
+  const [activeTab, setActiveTab] = useState<string>('poster');
 
   const handlePositionChange = useCallback((type: string, position: Position) => {
     onPositionsChange({
@@ -258,6 +275,10 @@ export function ArtworkPositionerTabs({
     });
   }, [positions, onPositionsChange]);
 
+  // Check if active tab is a custom product
+  const isCustomProduct = customProducts.some(p => p.id === activeTab);
+  const customProduct = customProducts.find(p => p.id === activeTab);
+
   return (
     <div className="space-y-4">
       <label className="block text-sm font-medium text-gray-700">
@@ -265,8 +286,8 @@ export function ArtworkPositionerTabs({
       </label>
 
       {/* Tabs */}
-      <div className="flex gap-1 p-1 bg-gray-100 rounded-lg">
-        {(['poster', 'canvas', 'framed'] as const).map((type) => (
+      <div className="flex flex-wrap gap-1 p-1 bg-gray-100 rounded-lg">
+        {defaultTypes.map((type) => (
           <button
             key={type}
             type="button"
@@ -280,16 +301,62 @@ export function ArtworkPositionerTabs({
             {type.charAt(0).toUpperCase() + type.slice(1)}
           </button>
         ))}
+        {customProducts.map((product) => (
+          <button
+            key={product.id}
+            type="button"
+            onClick={() => setActiveTab(product.id)}
+            className={`flex-1 py-2 px-3 text-sm font-medium rounded-md transition-all ${
+              activeTab === product.id
+                ? 'bg-blue-500 text-white shadow-sm'
+                : 'text-blue-600 hover:text-blue-700 bg-blue-50'
+            }`}
+          >
+            {product.name}
+          </button>
+        ))}
       </div>
 
       {/* Active Positioner */}
-      <ArtworkPositioner
-        imageUrl={imageUrl}
-        productType={activeTab}
-        orientation={orientation}
-        initialPosition={positions[activeTab]}
-        onPositionChange={(pos) => handlePositionChange(activeTab, pos)}
-      />
+      {!isCustomProduct ? (
+        <ArtworkPositioner
+          imageUrl={imageUrl}
+          productType={activeTab as 'poster' | 'canvas' | 'framed'}
+          orientation={orientation}
+          initialPosition={positions[activeTab]}
+          onPositionChange={(pos) => handlePositionChange(activeTab, pos)}
+        />
+      ) : (
+        <div className="space-y-4">
+          <div className="relative bg-gray-50 rounded-xl p-4">
+            <p className="text-xs text-gray-400 text-center mb-3">
+              Drag to position • Scroll to zoom
+            </p>
+            {/* Custom product positioner - uses 1:1 aspect for now */}
+            <div
+              className="relative mx-auto overflow-hidden bg-white shadow-xl cursor-grab"
+              style={{ width: '320px', height: '320px' }}
+            >
+              <div className="absolute inset-0 flex items-center justify-center">
+                <img
+                  src={imageUrl}
+                  alt="Artwork"
+                  className="max-w-none pointer-events-none select-none"
+                  style={{
+                    width: `${positions[activeTab]?.scale || 100}%`,
+                    height: 'auto',
+                    transform: `translate(${positions[activeTab]?.offsetX || 0}px, ${positions[activeTab]?.offsetY || 0}px)`,
+                  }}
+                  draggable={false}
+                />
+              </div>
+            </div>
+            <p className="text-xs text-blue-500 text-center mt-3">
+              {customProduct?.name} - Custom Printful product
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
