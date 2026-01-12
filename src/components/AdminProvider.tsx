@@ -29,6 +29,18 @@ export function AdminProvider({ children }: { children: ReactNode }) {
     setIsDesignDrawerOpen(true); // Open design drawer
   };
 
+  // Lock body scroll when admin panel is open
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [isOpen]);
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Option/Alt + F3 to toggle admin panel

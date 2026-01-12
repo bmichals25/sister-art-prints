@@ -10,18 +10,31 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-// Print options with sizing - maps to Printful products
-const printOptions = [
-  { id: 'poster-12x18', type: 'poster', label: 'Poster', size: '12×18"', price: 24.99 },
-  { id: 'poster-18x24', type: 'poster', label: 'Poster', size: '18×24"', price: 34.99 },
-  { id: 'poster-24x36', type: 'poster', label: 'Poster', size: '24×36"', price: 44.99 },
-  { id: 'canvas-12x16', type: 'canvas', label: 'Canvas', size: '12×16"', price: 49.99 },
-  { id: 'canvas-18x24', type: 'canvas', label: 'Canvas', size: '18×24"', price: 79.99 },
-  { id: 'canvas-24x36', type: 'canvas', label: 'Canvas', size: '24×36"', price: 119.99 },
-  { id: 'framed-12x18', type: 'framed', label: 'Framed', size: '12×18"', price: 59.99 },
-  { id: 'framed-18x24', type: 'framed', label: 'Framed', size: '18×24"', price: 89.99 },
-  { id: 'framed-24x36', type: 'framed', label: 'Framed', size: '24×36"', price: 129.99 },
-];
+// Print options with sizing - maps to Printful products, organized by orientation
+const printOptionsByOrientation = {
+  portrait: [
+    { id: 'poster-12x18', type: 'poster', label: 'Poster', size: '12×18"', price: 24.99 },
+    { id: 'poster-18x24', type: 'poster', label: 'Poster', size: '18×24"', price: 34.99 },
+    { id: 'poster-24x36', type: 'poster', label: 'Poster', size: '24×36"', price: 44.99 },
+    { id: 'canvas-12x16', type: 'canvas', label: 'Canvas', size: '12×16"', price: 49.99 },
+    { id: 'canvas-18x24', type: 'canvas', label: 'Canvas', size: '18×24"', price: 79.99 },
+    { id: 'canvas-24x36', type: 'canvas', label: 'Canvas', size: '24×36"', price: 119.99 },
+    { id: 'framed-12x18', type: 'framed', label: 'Framed', size: '12×18"', price: 59.99 },
+    { id: 'framed-18x24', type: 'framed', label: 'Framed', size: '18×24"', price: 89.99 },
+    { id: 'framed-24x36', type: 'framed', label: 'Framed', size: '24×36"', price: 129.99 },
+  ],
+  landscape: [
+    { id: 'poster-18x12', type: 'poster', label: 'Poster', size: '18×12"', price: 24.99 },
+    { id: 'poster-24x18', type: 'poster', label: 'Poster', size: '24×18"', price: 34.99 },
+    { id: 'poster-36x24', type: 'poster', label: 'Poster', size: '36×24"', price: 44.99 },
+    { id: 'canvas-16x12', type: 'canvas', label: 'Canvas', size: '16×12"', price: 49.99 },
+    { id: 'canvas-24x18', type: 'canvas', label: 'Canvas', size: '24×18"', price: 79.99 },
+    { id: 'canvas-36x24', type: 'canvas', label: 'Canvas', size: '36×24"', price: 119.99 },
+    { id: 'framed-18x12', type: 'framed', label: 'Framed', size: '18×12"', price: 59.99 },
+    { id: 'framed-24x18', type: 'framed', label: 'Framed', size: '24×18"', price: 89.99 },
+    { id: 'framed-36x24', type: 'framed', label: 'Framed', size: '36×24"', price: 129.99 },
+  ],
+};
 
 const productTypes = ['poster', 'canvas', 'framed'] as const;
 type ProductType = typeof productTypes[number];
@@ -33,6 +46,9 @@ interface Artwork {
   artist_name: string;
   image_url: string;
   price_base: number;
+  orientation?: 'portrait' | 'landscape';
+  custom_prices?: Record<string, number>;
+  enabled_prints?: string[];
 }
 
 export default function ArtworkPage({ params }: { params: Promise<{ id: string }> }) {
@@ -40,11 +56,15 @@ export default function ArtworkPage({ params }: { params: Promise<{ id: string }
   const [artwork, setArtwork] = useState<Artwork | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedType, setSelectedType] = useState<ProductType>('poster');
-  const [selectedOption, setSelectedOption] = useState(printOptions[0]);
+  const [selectedOption, setSelectedOption] = useState<typeof printOptionsByOrientation.portrait[0] | null>(null);
   const [isAddingToCart, setIsAddingToCart] = useState(false);
   const [mockupUrl, setMockupUrl] = useState<string | null>(null);
   const [mockupLoading, setMockupLoading] = useState(false);
   const [mockupCache, setMockupCache] = useState<Record<string, string>>({});
+
+  // Get orientation from artwork, default to portrait
+  const orientation = artwork?.orientation || 'portrait';
+  const printOptions = printOptionsByOrientation[orientation];
 
   useEffect(() => {
     async function fetchArtwork() {
@@ -54,15 +74,21 @@ export default function ArtworkPage({ params }: { params: Promise<{ id: string }
         .eq('id', resolvedParams.id)
         .single();
 
-      if (data) setArtwork(data);
+      if (data) {
+        setArtwork(data);
+        // Set initial selected option based on orientation
+        const artworkOrientation = (data.orientation as 'portrait' | 'landscape') || 'portrait';
+        const opts = printOptionsByOrientation[artworkOrientation];
+        setSelectedOption(opts[0]);
+      }
       setLoading(false);
     }
     fetchArtwork();
   }, [resolvedParams.id]);
 
   // Fetch mockup when type/size changes
-  const fetchMockup = useCallback(async (type: ProductType, size: string, imageUrl: string, artworkId: string) => {
-    const cacheKey = `${type}-${size}`;
+  const fetchMockup = useCallback(async (type: ProductType, size: string, imageUrl: string, artworkId: string, artworkOrientation: string) => {
+    const cacheKey = `${type}-${size}-${artworkOrientation}`;
 
     // Check local cache first
     if (mockupCache[cacheKey]) {
@@ -79,7 +105,8 @@ export default function ArtworkPage({ params }: { params: Promise<{ id: string }
           imageUrl,
           productType: type,
           size,
-          artworkId, // Pass artworkId for server-side caching
+          artworkId,
+          orientation: artworkOrientation,
         }),
       });
 
@@ -100,11 +127,16 @@ export default function ArtworkPage({ params }: { params: Promise<{ id: string }
   // Trigger mockup fetch when selection changes
   useEffect(() => {
     if (artwork?.id && artwork?.image_url && selectedType && selectedOption) {
-      fetchMockup(selectedType, selectedOption.size, artwork.image_url, artwork.id);
+      fetchMockup(selectedType, selectedOption.size, artwork.image_url, artwork.id, orientation);
     }
-  }, [artwork?.id, artwork?.image_url, selectedType, selectedOption, fetchMockup]);
+  }, [artwork?.id, artwork?.image_url, selectedType, selectedOption, orientation, fetchMockup]);
 
   const filteredOptions = printOptions.filter((opt) => opt.type === selectedType);
+
+  // Get price - use custom price if set, otherwise default
+  const getPrice = (optionId: string, defaultPrice: number) => {
+    return artwork?.custom_prices?.[optionId] ?? defaultPrice;
+  };
 
   const handleAddToCart = async () => {
     setIsAddingToCart(true);
@@ -180,7 +212,9 @@ export default function ArtworkPage({ params }: { params: Promise<{ id: string }
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
           {/* Mockup Preview */}
           <div className="sticky top-24">
-            <div className="relative aspect-[4/3] bg-gradient-to-b from-[#f5f0eb] to-[#e8e3de] rounded-2xl overflow-hidden shadow-lg">
+            <div className={`relative bg-gradient-to-b from-[#f5f0eb] to-[#e8e3de] rounded-2xl overflow-hidden shadow-lg ${
+              orientation === 'landscape' ? 'aspect-[4/3]' : 'aspect-[3/4]'
+            }`}>
               {/* Show Printful mockup if available, otherwise show artwork */}
               {mockupLoading ? (
                 <div className="absolute inset-0 flex items-center justify-center bg-[#f5f0eb]">
@@ -192,7 +226,7 @@ export default function ArtworkPage({ params }: { params: Promise<{ id: string }
               ) : mockupUrl ? (
                 <img
                   src={mockupUrl}
-                  alt={`${artwork.title} - ${typeLabels[selectedType]} ${selectedOption.size}`}
+                  alt={`${artwork.title} - ${typeLabels[selectedType]} ${selectedOption?.size || ''}`}
                   className="w-full h-full object-contain"
                 />
               ) : (
@@ -206,9 +240,11 @@ export default function ArtworkPage({ params }: { params: Promise<{ id: string }
               )}
 
               {/* Size indicator */}
-              <div className="absolute bottom-4 left-4 bg-white/90 backdrop-blur-sm px-3 py-1.5 rounded-full text-xs font-medium text-gray-700 shadow-sm">
-                {selectedOption.size} {typeLabels[selectedType]}
-              </div>
+              {selectedOption && (
+                <div className="absolute bottom-4 left-4 bg-white/90 backdrop-blur-sm px-3 py-1.5 rounded-full text-xs font-medium text-gray-700 shadow-sm">
+                  {selectedOption.size} {typeLabels[selectedType]}
+                </div>
+              )}
             </div>
 
             {/* Thumbnail strip */}
@@ -269,27 +305,32 @@ export default function ArtworkPage({ params }: { params: Promise<{ id: string }
             <div className="mb-8">
               <label className="block text-sm font-medium text-gray-900 mb-3">Size</label>
               <div className="grid grid-cols-3 gap-3">
-                {filteredOptions.map((option) => (
-                  <button
-                    key={option.id}
-                    onClick={() => setSelectedOption(option)}
-                    className={`p-4 border rounded-xl text-center transition-all ${
-                      selectedOption.id === option.id
-                        ? 'border-[#d4846a] bg-[#fff8f3] shadow-md'
-                        : 'border-gray-200 hover:border-[#e8a87c]'
-                    }`}
-                  >
-                    <div className="text-sm font-medium">{option.size}</div>
-                    <div className="text-sm text-[#d4846a] font-medium">${option.price}</div>
-                  </button>
-                ))}
+                {filteredOptions.map((option) => {
+                  const price = getPrice(option.id, option.price);
+                  return (
+                    <button
+                      key={option.id}
+                      onClick={() => setSelectedOption(option)}
+                      className={`p-4 border rounded-xl text-center transition-all ${
+                        selectedOption?.id === option.id
+                          ? 'border-[#d4846a] bg-[#fff8f3] shadow-md'
+                          : 'border-gray-200 hover:border-[#e8a87c]'
+                      }`}
+                    >
+                      <div className="text-sm font-medium">{option.size}</div>
+                      <div className="text-sm text-[#d4846a] font-medium">${price.toFixed(2)}</div>
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
             {/* Price & Add to Cart */}
             <div className="border-t border-[#e8a87c]/20 pt-6">
               <div className="flex items-center justify-between mb-6">
-                <span className="text-3xl font-light">${selectedOption.price}</span>
+                <span className="text-3xl font-light">
+                  ${selectedOption ? getPrice(selectedOption.id, selectedOption.price).toFixed(2) : '0.00'}
+                </span>
                 <span className="text-sm text-gray-500">Free shipping on orders over $100</span>
               </div>
               <button
