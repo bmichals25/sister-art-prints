@@ -242,6 +242,7 @@ interface CustomProduct {
   id: string;
   name: string;
   printfulProductId?: number;
+  productImage?: string;
   variants: Array<{
     id: string;
     printfulVariantId?: number;
@@ -328,6 +329,24 @@ export function ArtworkPositionerTabs({
         />
       ) : (
         <div className="space-y-4">
+          {/* Product preview image */}
+          {customProduct?.productImage && (
+            <div className="flex items-center gap-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+              <img
+                src={customProduct.productImage}
+                alt={customProduct.name}
+                className="w-16 h-16 object-contain rounded-lg bg-white"
+              />
+              <div>
+                <p className="text-sm font-medium text-blue-900">{customProduct.name}</p>
+                <p className="text-xs text-blue-600">Custom Printful product</p>
+                <p className="text-xs text-blue-500 mt-1">
+                  {customProduct.variants.length} variant{customProduct.variants.length !== 1 ? 's' : ''} available
+                </p>
+              </div>
+            </div>
+          )}
+
           <div className="relative bg-gray-50 rounded-xl p-4">
             <p className="text-xs text-gray-400 text-center mb-3">
               Drag to position • Scroll to zoom
@@ -351,8 +370,8 @@ export function ArtworkPositionerTabs({
                 />
               </div>
             </div>
-            <p className="text-xs text-blue-500 text-center mt-3">
-              {customProduct?.name} - Custom Printful product
+            <p className="text-xs text-gray-500 text-center mt-3">
+              Position your artwork within the print area
             </p>
           </div>
         </div>

@@ -57,6 +57,7 @@ interface CustomProduct {
   id: string;
   name: string;
   printfulProductId?: number;
+  productImage?: string;
   variants: Array<{
     id: string;
     printfulVariantId?: number;
@@ -150,7 +151,14 @@ export default function ArtworkPage({ params }: { params: Promise<{ id: string }
   }, [resolvedParams.id]);
 
   // Fetch mockup when type/size changes
-  const fetchMockup = useCallback(async (type: string, size: string, imageUrl: string, artworkId: string, artworkOrientation: string) => {
+  const fetchMockup = useCallback(async (
+    type: string,
+    size: string,
+    imageUrl: string,
+    artworkId: string,
+    artworkOrientation: string,
+    customProductData?: { printfulProductId?: number; printfulVariantId?: number; name?: string }
+  ) => {
     const cacheKey = `${type}-${size}-${artworkOrientation}`;
 
     // Check local cache first
@@ -161,16 +169,29 @@ export default function ArtworkPage({ params }: { params: Promise<{ id: string }
 
     setMockupLoading(true);
     try {
+      // Build request body - include Printful IDs for custom products
+      const requestBody: Record<string, unknown> = {
+        imageUrl,
+        artworkId,
+        orientation: artworkOrientation,
+      };
+
+      if (customProductData?.printfulProductId && customProductData?.printfulVariantId) {
+        // Custom product - use direct Printful IDs
+        requestBody.printfulProductId = customProductData.printfulProductId;
+        requestBody.printfulVariantId = customProductData.printfulVariantId;
+        requestBody.customProductName = customProductData.name;
+        requestBody.size = size;
+      } else {
+        // Standard product
+        requestBody.productType = type;
+        requestBody.size = size;
+      }
+
       const response = await fetch('/api/mockups', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          imageUrl,
-          productType: type,
-          size,
-          artworkId,
-          orientation: artworkOrientation,
-        }),
+        body: JSON.stringify(requestBody),
       });
 
       if (response.ok) {
@@ -190,9 +211,26 @@ export default function ArtworkPage({ params }: { params: Promise<{ id: string }
   // Trigger mockup fetch when selection changes
   useEffect(() => {
     if (artwork?.id && artwork?.image_url && selectedType && selectedOption) {
-      fetchMockup(selectedType, selectedOption.size, artwork.image_url, artwork.id, orientation);
+      // For custom products, pass Printful IDs
+      if (selectedOption.isCustom && selectedOption.printfulVariantId && customProduct?.printfulProductId) {
+        fetchMockup(
+          selectedType,
+          selectedOption.size,
+          artwork.image_url,
+          artwork.id,
+          orientation,
+          {
+            printfulProductId: customProduct.printfulProductId,
+            printfulVariantId: selectedOption.printfulVariantId,
+            name: customProduct.name,
+          }
+        );
+      } else {
+        // Standard product
+        fetchMockup(selectedType, selectedOption.size, artwork.image_url, artwork.id, orientation);
+      }
     }
-  }, [artwork?.id, artwork?.image_url, selectedType, selectedOption, orientation, fetchMockup]);
+  }, [artwork?.id, artwork?.image_url, selectedType, selectedOption, orientation, customProduct, fetchMockup]);
 
   // Get filtered options for current selection (default or custom product)
   const filteredOptions: PrintOption[] = isCustomProduct && customProduct

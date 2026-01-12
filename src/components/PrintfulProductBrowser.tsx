@@ -102,6 +102,7 @@ export function PrintfulProductBrowserFullscreen({ onSelect, onCancel }: Printfu
       onSelect({
         name: selectedProduct.model,
         printfulProductId: selectedProduct.id,
+        productImage: selectedProduct.image,
         variants: selectedVariants,
       });
     }
@@ -330,6 +331,7 @@ interface PrintfulProductBrowserProps {
   onSelect: (product: {
     name: string;
     printfulProductId: number;
+    productImage: string;
     variants: SelectedVariant[];
   }) => void;
   onCancel: () => void;
@@ -425,6 +427,7 @@ export function PrintfulProductBrowser({ onSelect, onCancel }: PrintfulProductBr
       onSelect({
         name: selectedProduct.model,
         printfulProductId: selectedProduct.id,
+        productImage: selectedProduct.image,
         variants: selectedVariants,
       });
     }

@@ -389,6 +389,7 @@ interface CustomProduct {
   id: string;
   name: string;
   printfulProductId?: number;
+  productImage?: string;
   variants: Array<{
     id: string;
     printfulVariantId?: number;
@@ -450,6 +451,7 @@ function EditArtwork({ artwork, onSave, onCancel }: { artwork: Artwork; onSave: 
   const addCustomProduct = (product: {
     name: string;
     printfulProductId: number;
+    productImage: string;
     variants: Array<{ id: number; name: string; size: string; color: string; price: number }>;
   }) => {
     const productId = product.name.toLowerCase().replace(/\s+/g, '-');
@@ -461,6 +463,7 @@ function EditArtwork({ artwork, onSave, onCancel }: { artwork: Artwork; onSave: 
       id: productId,
       name: product.name,
       printfulProductId: product.printfulProductId,
+      productImage: product.productImage,
       variants: product.variants.map(v => ({
         id: `${productId}-${v.size.toLowerCase().replace(/\s+/g, '-')}`,
         printfulVariantId: v.id,
